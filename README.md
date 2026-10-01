@@ -9,8 +9,8 @@ A KDE Plasma 6 widget that shows how much of the 5-hour and weekly limits are le
 Needs Plasma 6 and `python3`.
 
 ```sh
-git clone https://github.com/yusufipk/agents-usage.git
-cd agents-usage
+git clone https://github.com/yusufipk/kde-agents-usage.git
+cd kde-agents-usage
 ./install.sh
 ```
 
