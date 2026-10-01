@@ -7,8 +7,8 @@ append-only, so each file is parsed once and afterwards only from the byte
 offset reached last time; the per-file results live in a cache. Only the last
 RETENTION_DAYS days are kept.
 
-Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 30 days),
-periods: {"1"|"7"|"30": {claude, codex, models: [Model]}}} where a Model is
+Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 365 days),
+periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, models: [Model]}}} where a Model is
 {name, provider, total, input, output, cacheRead, cacheWrite}.
 """
 
@@ -25,8 +25,8 @@ CLAUDE_DIR = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HO
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_DIRS = [os.path.join(CODEX_HOME, "sessions"), os.path.join(CODEX_HOME, "archived_sessions")]
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
-CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v2.json")
-RETENTION_DAYS = 90
+CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v3.json")
+RETENTION_DAYS = 366
 WORKERS = 4
 
 
@@ -276,10 +276,10 @@ def pretty_model(provider, model):
 
 
 def summarise(cache, today):
-    days30 = [(today - timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
-    daily = {d: {"date": d, "claude": 0, "codex": 0} for d in days30}
+    all_days = [(today - timedelta(days=i)).isoformat() for i in range(364, -1, -1)]
+    daily = {d: {"date": d, "claude": 0, "codex": 0} for d in all_days}
     periods = {}
-    for n in (1, 7, 30):
+    for n in (1, 7, 30, 60, 90, 365):
         periods[str(n)] = {"first": (today - timedelta(days=n - 1)).isoformat(), "claude": 0, "codex": 0, "models": {}}
 
     for entry in cache["files"].values():
@@ -309,13 +309,19 @@ def summarise(cache, today):
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "scanning": False,
-        "daily": [daily[d] for d in days30],
+        "daily": [daily[d] for d in all_days],
         "periods": out,
     }
 
 
 def main():
     os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
+    # Earlier cache formats hold the same log metadata; do not leave them behind.
+    for old in ("tokens-v1.json", "tokens-v2.json"):
+        try:
+            os.unlink(os.path.join(CACHE_DIR, old))
+        except FileNotFoundError:
+            pass
     today = date.today()
     # One scan at a time; a second widget instance waits and reuses the result.
     with open(os.path.join(CACHE_DIR, "tokens.lock"), "w") as lock:

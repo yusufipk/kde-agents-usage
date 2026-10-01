@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-01 12:53+0300\n"
+"POT-Creation-Date: 2026-10-01 13:02+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -154,6 +154,10 @@ msgctxt "thousand tokens, compact"
 msgid "%1K"
 msgstr ""
 
+msgctxt "bar tooltip title, %1 is the first day of the week"
+msgid "Week of %1"
+msgstr ""
+
 msgid "Total: %1"
 msgstr ""
 
@@ -190,6 +194,15 @@ msgstr ""
 msgid "30 days"
 msgstr ""
 
+msgid "60 days"
+msgstr ""
+
+msgid "90 days"
+msgstr ""
+
+msgid "1 year"
+msgstr ""
+
 msgid "All"
 msgstr ""
 
@@ -202,7 +215,23 @@ msgstr ""
 msgid "Total tokens, last 30 days"
 msgstr ""
 
+msgid "Total tokens, last 60 days"
+msgstr ""
+
+msgid "Total tokens, last 90 days"
+msgstr ""
+
+msgid "Total tokens, last year"
+msgstr ""
+
 msgid "Total tokens, last 7 days"
+msgstr ""
+
+msgid "Monthly"
+msgstr ""
+
+msgctxt "chart title, tokens per week"
+msgid "Weekly"
 msgstr ""
 
 msgid "Daily"

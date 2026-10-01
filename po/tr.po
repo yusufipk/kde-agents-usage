@@ -140,6 +140,10 @@ msgctxt "thousand tokens, compact"
 msgid "%1K"
 msgstr "%1 B"
 
+msgctxt "bar tooltip title, %1 is the first day of the week"
+msgid "Week of %1"
+msgstr "%1 haftası"
+
 msgid "Total: %1"
 msgstr "Toplam: %1"
 
@@ -176,6 +180,15 @@ msgstr "7 gün"
 msgid "30 days"
 msgstr "30 gün"
 
+msgid "60 days"
+msgstr "60 gün"
+
+msgid "90 days"
+msgstr "90 gün"
+
+msgid "1 year"
+msgstr "1 yıl"
+
 msgid "All"
 msgstr "Tümü"
 
@@ -188,8 +201,24 @@ msgstr "Bugünkü toplam token"
 msgid "Total tokens, last 30 days"
 msgstr "Toplam token, son 30 gün"
 
+msgid "Total tokens, last 60 days"
+msgstr "Toplam token, son 60 gün"
+
+msgid "Total tokens, last 90 days"
+msgstr "Toplam token, son 90 gün"
+
+msgid "Total tokens, last year"
+msgstr "Toplam token, son 1 yıl"
+
 msgid "Total tokens, last 7 days"
 msgstr "Toplam token, son 7 gün"
+
+msgid "Monthly"
+msgstr "Aylık"
+
+msgctxt "chart title, tokens per week"
+msgid "Weekly"
+msgstr "Haftalık"
 
 msgid "Daily"
 msgstr "Günlük"

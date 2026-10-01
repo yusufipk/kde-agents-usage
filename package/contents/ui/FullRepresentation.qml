@@ -76,6 +76,8 @@ PlasmaExtras.Representation {
     contentItem: PlasmaComponents3.ScrollView {
         id: scroll
 
+        // Fixed implicit width: deriving it from contentWidth loops through availableWidth.
+        implicitWidth: Kirigami.Units.gridUnit * 20
         contentWidth: availableWidth
         QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 

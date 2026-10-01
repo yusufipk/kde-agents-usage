@@ -21,7 +21,7 @@ ColumnLayout {
     property int periodIndex: 1
     property int providerIndex: 0
 
-    readonly property var periodKeys: ["1", "7", "30"]
+    readonly property var periodKeys: ["1", "7", "30", "60", "90", "365"]
     readonly property string periodKey: periodKeys[periodIndex]
     readonly property bool showClaude: providerIndex !== 2
     readonly property bool showCodex: providerIndex !== 1
@@ -46,8 +46,43 @@ ColumnLayout {
         if (!hasData)
             return [];
         const all = Array.isArray(tokens.daily) ? tokens.daily.filter(d => !!d) : [];
-        const n = periodIndex === 2 ? 30 : 7;
-        return all.slice(Math.max(0, all.length - n));
+        const n = [7, 7, 30, 60, 90, 365][periodIndex];
+        const slice = all.slice(Math.max(0, all.length - n));
+        // Long periods are grouped so the bars stay readable: weeks for 60
+        // and 90 days, months for a year.
+        if (periodIndex >= 5)
+            return bucket(slice, "month");
+        if (periodIndex >= 3)
+            return bucket(slice, "week");
+        return slice;
+    }
+
+    function bucket(list, unit) {
+        const out = [];
+        let cur = null;
+        for (const d of list) {
+            const date = parseDay(d.date);
+            if (!date)
+                continue;
+            let key;
+            if (unit === "month") {
+                key = d.date.slice(0, 7) + "-01";
+            } else {
+                // Weeks start on the locale's first day of the week.
+                const back = (date.getDay() - Qt.locale().firstDayOfWeek + 7) % 7;
+                const start = new Date(date.getFullYear(), date.getMonth(), date.getDate() - back);
+                key = Qt.formatDate(start, "yyyy-MM-dd");
+            }
+            if (!cur || cur.key !== key) {
+                // date is the first day actually inside the period, so a
+                // partial leading week or month is not labelled before it.
+                cur = { key: key, date: d.date, unit: unit, claude: 0, codex: 0 };
+                out.push(cur);
+            }
+            cur.claude += Number(d.claude) || 0;
+            cur.codex += Number(d.codex) || 0;
+        }
+        return out;
     }
     readonly property real maxDay: days.reduce((m, d) => Math.max(m, dayValue(d)), 0)
     readonly property int maxIndex: {
@@ -156,15 +191,23 @@ ColumnLayout {
         return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     }
 
-    function dateLabel(iso) {
+    function dateLabel(iso, unit) {
         const d = parseDay(iso);
-        return d ? Qt.locale().toString(d, "d MMM") : String(iso || "");
+        if (!d)
+            return String(iso || "");
+        return Qt.locale().toString(d, unit === "month" ? "MMM" : "d MMM");
     }
 
     function dayTooltip(d) {
         const claude = Number(d.claude) || 0;
         const codex = Number(d.codex) || 0;
-        const lines = [dateLabel(d.date)];
+        const date = parseDay(d.date);
+        let title = dateLabel(d.date);
+        if (date && d.unit === "month")
+            title = Qt.locale().toString(date, "MMMM yyyy");
+        else if (date && d.unit === "week")
+            title = i18nc("bar tooltip title, %1 is the first day of the week", "Week of %1", dateLabel(d.date));
+        const lines = [title];
         if (stacked)
             lines.push(i18n("Total: %1", exact(claude + codex)));
         if (showClaude)
@@ -237,7 +280,7 @@ ColumnLayout {
 
             PlasmaComponents3.ComboBox {
                 Layout.fillWidth: true
-                model: [i18n("Today"), i18n("7 days"), i18n("30 days")]
+                model: [i18n("Today"), i18n("7 days"), i18n("30 days"), i18n("60 days"), i18n("90 days"), i18n("1 year")]
                 currentIndex: tokensView.periodIndex
                 onActivated: index => tokensView.periodIndex = index
             }
@@ -288,6 +331,12 @@ ColumnLayout {
                     return i18n("Total tokens today");
                 case 2:
                     return i18n("Total tokens, last 30 days");
+                case 3:
+                    return i18n("Total tokens, last 60 days");
+                case 4:
+                    return i18n("Total tokens, last 90 days");
+                case 5:
+                    return i18n("Total tokens, last year");
                 default:
                     return i18n("Total tokens, last 7 days");
                 }
@@ -343,7 +392,7 @@ ColumnLayout {
 
         PlasmaExtras.Heading {
             level: 3
-            text: i18n("Daily")
+            text: (tokensView.periodIndex >= 5 ? i18n("Monthly") : tokensView.periodIndex >= 3 ? i18nc("chart title, tokens per week", "Weekly") : i18n("Daily"))
         }
 
         // Stacked column chart drawn with plain Rectangles
@@ -365,8 +414,9 @@ ColumnLayout {
             readonly property int labelIndex: tokensView.emphasizeToday ? count - 1 : tokensView.maxIndex
             readonly property bool emptyPeriod: tokensView.maxDay <= 0
             // Label every slot when it is wide enough, otherwise every other
-            // day on the 7-day view and every week on the 30-day view
-            readonly property int labelStride: count > 7 ? 7 : (slotWidth >= Kirigami.Units.gridUnit * 2.4 ? 1 : 2)
+            // one; the 30-day daily view labels one day per week.
+            readonly property bool grouped: count > 0 && !!tokensView.days[0].unit
+            readonly property int labelStride: (count > 7 && !grouped) ? 7 : (slotWidth >= Kirigami.Units.gridUnit * 2.4 ? 1 : 2)
 
             function barHeight(v) {
                 const usable = plotHeight - (tokensView.stacked ? gap : 0);
@@ -549,7 +599,7 @@ ColumnLayout {
                     visible: (chart.count - 1 - index) % chart.labelStride === 0
                     x: Math.max(0, Math.min(chart.width - width, chart.gutter + (index + 0.5) * chart.slotWidth - width / 2))
                     y: chart.baseY + Kirigami.Units.smallSpacing
-                    text: tokensView.dateLabel(modelData.date)
+                    text: tokensView.dateLabel(modelData.date, modelData.unit)
                     color: Kirigami.Theme.disabledTextColor
                     font: Kirigami.Theme.smallFont
                 }

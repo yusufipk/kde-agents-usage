@@ -321,6 +321,9 @@ def main():
     try:
         os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
         write_json_atomic(CACHE_FILE, cache)
+        # Pre-localisation cache file, superseded by limits-v2.json.
+        if os.path.exists(os.path.join(CACHE_DIR, "last.json")):
+            os.unlink(os.path.join(CACHE_DIR, "last.json"))
     except OSError:
         pass
 
