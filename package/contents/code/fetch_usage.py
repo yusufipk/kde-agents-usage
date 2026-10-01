@@ -6,7 +6,9 @@ on disk and asks each service for the current rate-limit windows. Stdlib only,
 so the plasmoid needs nothing beyond python3.
 
 Output: {"fetchedAt": ISO, "providers": [Provider, ...]} where a Provider is
-{id, name, plan, ok, stale, error, windows: [{key, label, usedPercent, resetsAt}]}.
+{id, name, plan, ok, stale, errorCode, errorDetail,
+windows: [{key, model, usedPercent, resetsAt}]}. Error codes and window keys
+are turned into localised text by the QML side.
 The last good result per provider is cached, so a failed fetch still shows the
 previous numbers with stale=true.
 """
@@ -27,7 +29,7 @@ CLAUDE_CREDS = os.path.join(HOME, ".claude", ".credentials.json")
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_AUTH = os.path.join(CODEX_HOME, "auth.json")
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
-CACHE_FILE = os.path.join(CACHE_DIR, "last.json")
+CACHE_FILE = os.path.join(CACHE_DIR, "limits-v2.json")
 
 CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
@@ -38,7 +40,12 @@ TIMEOUT = 15
 
 
 class FetchError(Exception):
-    """An error whose message is shown to the user as is (Turkish)."""
+    """A known failure, reported to the UI as an error code plus detail."""
+
+    def __init__(self, code, detail=None):
+        super().__init__(code)
+        self.code = code
+        self.detail = detail
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -64,8 +71,8 @@ def iso_from_epoch(seconds):
     return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
 
 
-def window(key, label, used, resets_at):
-    return {"key": key, "label": label, "usedPercent": max(0.0, min(100.0, float(used))), "resetsAt": resets_at}
+def window(key, used, resets_at, model=None):
+    return {"key": key, "model": model, "usedPercent": max(0.0, min(100.0, float(used))), "resetsAt": resets_at}
 
 
 # Claude
@@ -76,12 +83,12 @@ def fetch_claude():
         with open(CLAUDE_CREDS) as f:
             oauth = json.load(f)["claudeAiOauth"]
     except (OSError, ValueError, KeyError):
-        raise FetchError("Claude Code girişi bulunamadı (claude ile giriş yap)")
+        raise FetchError("claude_no_login")
 
     # The token is only read, never refreshed: Claude Code rotates the refresh
     # token itself and a second writer could log it out.
     if oauth.get("expiresAt", 0) / 1000 < time.time():
-        raise FetchError("Claude Code oturumu süresi dolmuş; claude'u bir kez açınca düzelir")
+        raise FetchError("claude_expired")
 
     try:
         data = http_json(CLAUDE_USAGE_URL, {
@@ -92,14 +99,14 @@ def fetch_claude():
         })
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            raise FetchError("Claude oturumu geçersiz; claude'u bir kez aç")
-        raise FetchError("Claude HTTP %d" % e.code)
+            raise FetchError("claude_invalid")
+        raise FetchError("http", str(e.code))
 
     windows = []
-    for key, label in (("five_hour", "5 saat"), ("seven_day", "Haftalık")):
+    for key in ("five_hour", "seven_day"):
         w = data.get(key)
         if w and w.get("utilization") is not None:
-            windows.append(window("session" if key == "five_hour" else "weekly", label, w["utilization"], w.get("resets_at")))
+            windows.append(window("session" if key == "five_hour" else "weekly", w["utilization"], w.get("resets_at")))
 
     # Per-model weekly caps (e.g. a separate Fable or Opus budget) only appear
     # in the newer "limits" list.
@@ -108,7 +115,7 @@ def fetch_claude():
             continue
         model = ((lim.get("scope") or {}).get("model") or {}).get("display_name")
         if model and lim.get("percent") is not None:
-            windows.append(window("weekly_" + model.lower(), "Haftalık · " + model, lim["percent"], lim.get("resets_at")))
+            windows.append(window("weekly_scoped", lim["percent"], lim.get("resets_at"), model))
 
     plan = oauth.get("subscriptionType")
     return {"plan": plan.capitalize() if plan else None, "windows": windows}
@@ -154,7 +161,7 @@ def refresh_codex(auth):
             "scope": "openid profile email",
         })
     except urllib.error.HTTPError:
-        raise FetchError("Codex oturumu yenilenemedi; codex login ile tekrar giriş yap")
+        raise FetchError("codex_refresh_failed")
     sent = auth["tokens"]["refresh_token"]
     # Re-read right before writing: if the CLI or a new `codex login` changed
     # the file during the request, keep its tokens instead of overwriting them.
@@ -168,7 +175,7 @@ def refresh_codex(auth):
     try:
         write_json_atomic(CODEX_AUTH, current)
     except OSError as e:
-        raise FetchError("Yenilenen Codex oturumu kaydedilemedi (%s); codex login gerekebilir" % e.strerror)
+        raise FetchError("codex_save_failed", e.strerror)
     return current
 
 
@@ -182,7 +189,7 @@ def load_codex_auth():
         auth["tokens"]["access_token"]
         return auth
     except (OSError, ValueError, KeyError, TypeError):
-        raise FetchError("Codex ChatGPT girişi bulunamadı (codex login ile giriş yap)")
+        raise FetchError("codex_no_login")
 
 
 class codex_lock:
@@ -220,7 +227,7 @@ def fetch_codex():
         # Only 401 means a bad token; a 403 is usually a bot challenge, and
         # refreshing on it would rotate the login on every poll.
         if e.code != 401:
-            raise FetchError("Codex HTTP %d" % e.code)
+            raise FetchError("http", str(e.code))
         with codex_lock():
             auth = load_codex_auth()
             # The CLI may have refreshed in the meantime; use its token then.
@@ -230,7 +237,7 @@ def fetch_codex():
         try:
             data = call(tokens)
         except urllib.error.HTTPError as e2:
-            raise FetchError("Codex HTTP %d" % e2.code)
+            raise FetchError("http", str(e2.code))
 
     windows = []
     rl = data.get("rate_limit") or {}
@@ -241,13 +248,13 @@ def fetch_codex():
         seconds = w.get("limit_window_seconds") or 0
         # Classify by window length rather than slot, which has moved before.
         if seconds and seconds <= 6 * 3600:
-            key, label = "session", "5 saat"
+            key = "session"
         else:
-            key, label = "weekly", "Haftalık"
+            key = "weekly"
         reset = w.get("reset_at")
         if reset is None and w.get("reset_after_seconds") is not None:
             reset = time.time() + w["reset_after_seconds"]
-        windows.append(window(key, label, w["used_percent"], iso_from_epoch(reset) if reset else None))
+        windows.append(window(key, w["used_percent"], iso_from_epoch(reset) if reset else None))
     windows.sort(key=lambda w: w["key"] != "session")
 
     # The API only lists a window once it has started, so an idle 5-hour
@@ -284,15 +291,15 @@ def run(entry):
     try:
         return pid, name, fn(), None
     except FetchError as e:
-        return pid, name, None, str(e)
+        return pid, name, None, (e.code, e.detail)
     except ValueError:
         # http.client quotes an invalid header value, i.e. the token, in its message.
-        return pid, name, None, "Kimlik dosyası okunamadı veya bozuk"
+        return pid, name, None, ("bad_credentials", None)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         reason = getattr(e, "reason", e)
-        return pid, name, None, "Bağlantı hatası: %s" % reason
+        return pid, name, None, ("network", str(reason))
     except Exception as e:  # never let one provider break the whole popup
-        return pid, name, None, "%s: %s" % (type(e).__name__, e)
+        return pid, name, None, ("unknown", "%s: %s" % (type(e).__name__, e))
 
 
 def main():
@@ -304,12 +311,12 @@ def main():
     for pid, name, result, error in results:
         if result is not None:
             cache[pid] = result
-            providers.append({"id": pid, "name": name, "ok": True, "stale": False, "error": None, **result})
+            providers.append({"id": pid, "name": name, "ok": True, "stale": False, "errorCode": None, "errorDetail": None, **result})
         elif pid in cache:
             cached = dict(cache[pid], windows=[expire_window(w) for w in cache[pid].get("windows", [])])
-            providers.append({"id": pid, "name": name, "ok": False, "stale": True, "error": error, **cached})
+            providers.append({"id": pid, "name": name, "ok": False, "stale": True, "errorCode": error[0], "errorDetail": error[1], **cached})
         else:
-            providers.append({"id": pid, "name": name, "ok": False, "stale": False, "error": error, "plan": None, "windows": []})
+            providers.append({"id": pid, "name": name, "ok": False, "stale": False, "errorCode": error[0], "errorDetail": error[1], "plan": None, "windows": []})
 
     try:
         os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)

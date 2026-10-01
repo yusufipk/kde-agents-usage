@@ -1,0 +1,220 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-01 12:53+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+msgid "Limits"
+msgstr ""
+
+msgid "Tokens"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid ""
+"From local Claude Code and Codex logs; claude.ai chats are not included."
+msgstr ""
+
+msgid "Refresh failed"
+msgstr ""
+
+msgid "Last updated: %1"
+msgstr ""
+
+msgid "Live data unavailable, showing cached values"
+msgstr ""
+
+msgctxt "provider name: error message"
+msgid "%1: %2"
+msgstr ""
+
+msgid "5 hours"
+msgstr ""
+
+msgid "Weekly"
+msgstr ""
+
+msgid "Weekly · %1"
+msgstr ""
+
+msgid "Claude Code login not found, sign in with claude"
+msgstr ""
+
+msgid "Claude Code session expired, open claude once to renew it"
+msgstr ""
+
+msgid "Claude session is invalid, open claude once"
+msgstr ""
+
+msgid "Codex ChatGPT login not found, sign in with codex login"
+msgstr ""
+
+msgid "Could not renew the Codex session, sign in again with codex login"
+msgstr ""
+
+msgid ""
+"Could not save the renewed Codex session (%1), codex login may be needed"
+msgstr ""
+
+msgid "HTTP error %1"
+msgstr ""
+
+msgid "Connection error: %1"
+msgstr ""
+
+msgid "Credentials file is unreadable or corrupt"
+msgstr ""
+
+msgid "Unknown error"
+msgstr ""
+
+msgid "Reset, refreshing"
+msgstr ""
+
+msgid "resets in %1 d %2 h"
+msgstr ""
+
+msgid "resets in %1 h %2 min"
+msgstr ""
+
+msgid "resets in %1 min"
+msgstr ""
+
+msgid "Fetching limits…"
+msgstr ""
+
+msgid "Could not fetch limits"
+msgstr ""
+
+msgid "No data yet"
+msgstr ""
+
+msgid "Try again"
+msgstr ""
+
+msgctxt "cached values are shown"
+msgid "stale"
+msgstr ""
+
+msgid "No active limit window yet"
+msgstr ""
+
+#, javascript-format
+msgctxt "remaining percentage"
+msgid "%1%"
+msgstr ""
+
+msgid "The helper script returned invalid output"
+msgstr ""
+
+msgid "Agents Usage"
+msgstr ""
+
+msgid "Loading…"
+msgstr ""
+
+msgctxt "tooltip, e.g. 5 hours: 76% left"
+msgid "%1: %2% left"
+msgstr ""
+
+msgid "unavailable"
+msgstr ""
+
+msgid "no data"
+msgstr ""
+
+msgid "Other"
+msgstr ""
+
+msgctxt "billion tokens, compact"
+msgid "%1B"
+msgstr ""
+
+msgctxt "million tokens, compact"
+msgid "%1M"
+msgstr ""
+
+msgctxt "thousand tokens, compact"
+msgid "%1K"
+msgstr ""
+
+msgid "Total: %1"
+msgstr ""
+
+msgid "Claude: %1"
+msgstr ""
+
+msgid "Codex: %1"
+msgstr ""
+
+msgid "Input: %1"
+msgstr ""
+
+msgid "Output: %1"
+msgstr ""
+
+msgid "Cache read: %1"
+msgstr ""
+
+msgid "Cache write: %1"
+msgstr ""
+
+msgid "Reading token logs…"
+msgstr ""
+
+msgid "Could not read token logs"
+msgstr ""
+
+msgid "Today"
+msgstr ""
+
+msgid "7 days"
+msgstr ""
+
+msgid "30 days"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "First scan in progress, numbers may be incomplete"
+msgstr ""
+
+msgid "Total tokens today"
+msgstr ""
+
+msgid "Total tokens, last 30 days"
+msgstr ""
+
+msgid "Total tokens, last 7 days"
+msgstr ""
+
+msgid "Daily"
+msgstr ""
+
+msgid "No usage in this period yet"
+msgstr ""
+
+msgid "By model"
+msgstr ""
+
+msgid "%1 model"
+msgid_plural "%1 models"
+msgstr[0] ""
+msgstr[1] ""

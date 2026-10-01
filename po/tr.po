@@ -1,0 +1,206 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: kde-agents-usage\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Limits"
+msgstr "Limitler"
+
+msgid "Tokens"
+msgstr "Tokenlar"
+
+msgid "Refresh"
+msgstr "Yenile"
+
+msgid "From local Claude Code and Codex logs; claude.ai chats are not included."
+msgstr "Yerel Claude Code ve Codex kayıtlarından; claude.ai sohbetleri dahil değil."
+
+msgid "Refresh failed"
+msgstr "Yenileme başarısız"
+
+msgid "Last updated: %1"
+msgstr "Son güncelleme: %1"
+
+msgid "Live data unavailable, showing cached values"
+msgstr "Canlı veri alınamadı, önbellekteki değerler gösteriliyor"
+
+msgctxt "provider name: error message"
+msgid "%1: %2"
+msgstr "%1: %2"
+
+msgid "5 hours"
+msgstr "5 saat"
+
+msgid "Weekly"
+msgstr "Haftalık"
+
+msgid "Weekly · %1"
+msgstr "Haftalık · %1"
+
+msgid "Claude Code login not found, sign in with claude"
+msgstr "Claude Code girişi bulunamadı, claude ile giriş yap"
+
+msgid "Claude Code session expired, open claude once to renew it"
+msgstr "Claude Code oturumunun süresi dolmuş, yenilemek için claude'u bir kez aç"
+
+msgid "Claude session is invalid, open claude once"
+msgstr "Claude oturumu geçersiz, claude'u bir kez aç"
+
+msgid "Codex ChatGPT login not found, sign in with codex login"
+msgstr "Codex ChatGPT girişi bulunamadı, codex login ile giriş yap"
+
+msgid "Could not renew the Codex session, sign in again with codex login"
+msgstr "Codex oturumu yenilenemedi, codex login ile tekrar giriş yap"
+
+msgid "Could not save the renewed Codex session (%1), codex login may be needed"
+msgstr "Yenilenen Codex oturumu kaydedilemedi (%1), codex login gerekebilir"
+
+msgid "HTTP error %1"
+msgstr "HTTP hatası %1"
+
+msgid "Connection error: %1"
+msgstr "Bağlantı hatası: %1"
+
+msgid "Credentials file is unreadable or corrupt"
+msgstr "Kimlik dosyası okunamadı veya bozuk"
+
+msgid "Unknown error"
+msgstr "Bilinmeyen hata"
+
+msgid "Reset, refreshing"
+msgstr "Sıfırlandı, yenileniyor"
+
+msgid "resets in %1 d %2 h"
+msgstr "%1 gün %2 sa sonra sıfırlanır"
+
+msgid "resets in %1 h %2 min"
+msgstr "%1 sa %2 dk sonra sıfırlanır"
+
+msgid "resets in %1 min"
+msgstr "%1 dk sonra sıfırlanır"
+
+msgid "Fetching limits…"
+msgstr "Limitler alınıyor…"
+
+msgid "Could not fetch limits"
+msgstr "Limitler alınamadı"
+
+msgid "No data yet"
+msgstr "Henüz veri yok"
+
+msgid "Try again"
+msgstr "Tekrar dene"
+
+msgctxt "cached values are shown"
+msgid "stale"
+msgstr "eski veri"
+
+msgid "No active limit window yet"
+msgstr "Henüz başlamış bir limit penceresi yok"
+
+msgctxt "remaining percentage"
+msgid "%1%"
+msgstr "%%1"
+
+msgid "The helper script returned invalid output"
+msgstr "Yardımcı betik geçersiz çıktı verdi"
+
+msgid "Agents Usage"
+msgstr "Ajan Limitleri"
+
+msgid "Loading…"
+msgstr "Yükleniyor…"
+
+msgctxt "tooltip, e.g. 5 hours: 76% left"
+msgid "%1: %2% left"
+msgstr "%1: %%2 kaldı"
+
+msgid "unavailable"
+msgstr "alınamadı"
+
+msgid "no data"
+msgstr "veri yok"
+
+msgid "Other"
+msgstr "Diğer"
+
+msgctxt "billion tokens, compact"
+msgid "%1B"
+msgstr "%1 Mr"
+
+msgctxt "million tokens, compact"
+msgid "%1M"
+msgstr "%1 Mn"
+
+msgctxt "thousand tokens, compact"
+msgid "%1K"
+msgstr "%1 B"
+
+msgid "Total: %1"
+msgstr "Toplam: %1"
+
+msgid "Claude: %1"
+msgstr "Claude: %1"
+
+msgid "Codex: %1"
+msgstr "Codex: %1"
+
+msgid "Input: %1"
+msgstr "Girdi: %1"
+
+msgid "Output: %1"
+msgstr "Çıktı: %1"
+
+msgid "Cache read: %1"
+msgstr "Önbellek okuma: %1"
+
+msgid "Cache write: %1"
+msgstr "Önbellek yazma: %1"
+
+msgid "Reading token logs…"
+msgstr "Token kayıtları okunuyor…"
+
+msgid "Could not read token logs"
+msgstr "Token kayıtları okunamadı"
+
+msgid "Today"
+msgstr "Bugün"
+
+msgid "7 days"
+msgstr "7 gün"
+
+msgid "30 days"
+msgstr "30 gün"
+
+msgid "All"
+msgstr "Tümü"
+
+msgid "First scan in progress, numbers may be incomplete"
+msgstr "İlk tarama sürüyor, sayılar eksik olabilir"
+
+msgid "Total tokens today"
+msgstr "Bugünkü toplam token"
+
+msgid "Total tokens, last 30 days"
+msgstr "Toplam token, son 30 gün"
+
+msgid "Total tokens, last 7 days"
+msgstr "Toplam token, son 7 gün"
+
+msgid "Daily"
+msgstr "Günlük"
+
+msgid "No usage in this period yet"
+msgstr "Bu dönemde henüz kullanım yok"
+
+msgid "By model"
+msgstr "Modele göre"
+
+msgid "%1 model"
+msgid_plural "%1 models"
+msgstr[0] "%1 model"
+msgstr[1] "%1 model"
