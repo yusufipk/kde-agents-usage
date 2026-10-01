@@ -247,3 +247,22 @@ msgid "%1 model"
 msgid_plural "%1 models"
 msgstr[0] ""
 msgstr[1] ""
+
+msgctxt "amount in US dollars"
+msgid "$%1"
+msgstr ""
+
+msgid "At API prices: %1"
+msgstr ""
+
+msgid "At API prices: no known price"
+msgstr ""
+
+msgid "≈ %1 at API prices, cache included"
+msgstr ""
+
+msgid "What these tokens would cost on the pay-as-you-go API, cache reads and writes included. Standard list prices from %1; long-context surcharges are not applied."
+msgstr ""
+
+msgid "Not included: %1 tokens from models with no known price"
+msgstr ""

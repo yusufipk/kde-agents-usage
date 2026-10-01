@@ -8,24 +8,33 @@ offset reached last time; the per-file results live in a cache. Only the last
 RETENTION_DAYS days are kept.
 
 Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 365 days),
-periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, models: [Model]}}} where a Model is
-{name, provider, total, input, output, cacheRead, cacheWrite}.
+pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, cost: {claude, codex},
+unpriced: {claude, codex}, models: [Model]}}} where a Model is
+{name, provider, total, input, output, cacheRead, cacheWrite, cost}. cost is the
+USD the tokens would cost at API list prices; tokens of models without a known
+price are left out of it and counted in unpriced, and such a Model has cost null.
 """
 
 import fcntl
 import json
 import os
 import re
+import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date, datetime, timedelta, timezone
+
+# The widget runs this with python3 -I, which leaves the script's own
+# directory off sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import prices  # noqa: E402
 
 HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude"), "projects")
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_DIRS = [os.path.join(CODEX_HOME, "sessions"), os.path.join(CODEX_HOME, "archived_sessions")]
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
-CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v3.json")
+CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v4.json")
 RETENTION_DAYS = 366
 WORKERS = 4
 
@@ -36,7 +45,7 @@ def local_day(ts):
 
 
 def add(contrib, day, model, comps):
-    slot = contrib.setdefault(day, {}).setdefault(model, [0, 0, 0, 0])
+    slot = contrib.setdefault(day, {}).setdefault(model, [0] * len(comps))
     for i, v in enumerate(comps):
         slot[i] += v
 
@@ -75,11 +84,16 @@ def parse_claude(path, offset):
             # A response with several content blocks is written once per block
             # with the same usage, so the message id (+ request id) is the key.
             key = "%s:%s" % (msg.get("id"), d.get("requestId"))
+            # Cache writes are priced by TTL. Without the split, assume the
+            # API default of 5 minutes.
+            write = usage.get("cache_creation_input_tokens") or 0
+            write1h = min(write, (usage.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0)
             comps = [
                 usage.get("input_tokens") or 0,
                 usage.get("output_tokens") or 0,
                 usage.get("cache_read_input_tokens") or 0,
-                usage.get("cache_creation_input_tokens") or 0,
+                write - write1h,
+                write1h,
             ]
             # Early lines of a response carry partial output counts; keep the max.
             if key in records:
@@ -137,6 +151,7 @@ def codex_comps(u):
         u.get("output_tokens") or 0,
         cached,
         u.get("cache_write_input_tokens") or 0,
+        0,
     ]
 
 
@@ -275,13 +290,21 @@ def pretty_model(provider, model):
     return model
 
 
-def summarise(cache, today):
+def summarise(cache, today, price_of, prices_as_of):
     all_days = [(today - timedelta(days=i)).isoformat() for i in range(364, -1, -1)]
     daily = {d: {"date": d, "claude": 0, "codex": 0} for d in all_days}
     periods = {}
     for n in (1, 7, 30, 60, 90, 365):
-        periods[str(n)] = {"first": (today - timedelta(days=n - 1)).isoformat(), "claude": 0, "codex": 0, "models": {}}
+        periods[str(n)] = {
+            "first": (today - timedelta(days=n - 1)).isoformat(),
+            "claude": 0,
+            "codex": 0,
+            "cost": {"claude": 0.0, "codex": 0.0},
+            "unpriced": {"claude": 0, "codex": 0},
+            "models": {},
+        }
 
+    rates = {}
     for entry in cache["files"].values():
         provider = entry["kind"]
         for day, models in entry["contrib"].items():
@@ -289,26 +312,52 @@ def summarise(cache, today):
                 total = sum(comps)
                 if day in daily:
                     daily[day][provider] += total
+                if model not in rates:
+                    rates[model] = price_of(model)
+                cost = prices.cost(rates[model], comps) if rates[model] else None
                 for p in periods.values():
                     if day < p["first"]:
                         continue
                     p[provider] += total
                     name = pretty_model(provider, model)
-                    slot = p["models"].setdefault((provider, name), [0, 0, 0, 0])
+                    slot = p["models"].setdefault((provider, name), {"comps": [0] * 5, "cost": 0.0, "unpriced": 0})
                     for i, v in enumerate(comps):
-                        slot[i] += v
+                        slot["comps"][i] += v
+                    if cost is None:
+                        slot["unpriced"] += total
+                        p["unpriced"][provider] += total
+                    else:
+                        slot["cost"] += cost
+                        p["cost"][provider] += cost
 
     out = {}
     for key, p in periods.items():
-        models = [
-            {"name": name, "provider": provider, "total": sum(c), "input": c[0], "output": c[1], "cacheRead": c[2], "cacheWrite": c[3]}
-            for (provider, name), c in p["models"].items()
-        ]
+        models = []
+        for (provider, name), slot in p["models"].items():
+            c = slot["comps"]
+            total = sum(c)
+            models.append({
+                "name": name,
+                "provider": provider,
+                "total": total,
+                "input": c[0],
+                "output": c[1],
+                "cacheRead": c[2],
+                "cacheWrite": c[3] + c[4],
+                "cost": None if slot["unpriced"] >= total else round(slot["cost"], 4),
+            })
         models.sort(key=lambda m: m["total"], reverse=True)
-        out[key] = {"claude": p["claude"], "codex": p["codex"], "models": models}
+        out[key] = {
+            "claude": p["claude"],
+            "codex": p["codex"],
+            "cost": {k: round(v, 4) for k, v in p["cost"].items()},
+            "unpriced": p["unpriced"],
+            "models": models,
+        }
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "scanning": False,
+        "pricesAsOf": prices_as_of,
         "daily": [daily[d] for d in all_days],
         "periods": out,
     }
@@ -317,7 +366,7 @@ def summarise(cache, today):
 def main():
     os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
     # Earlier cache formats hold the same log metadata; do not leave them behind.
-    for old in ("tokens-v1.json", "tokens-v2.json"):
+    for old in ("tokens-v1.json", "tokens-v2.json", "tokens-v3.json"):
         try:
             os.unlink(os.path.join(CACHE_DIR, old))
         except FileNotFoundError:
@@ -329,7 +378,9 @@ def main():
         cache = load_cache()
         update(cache, today)
         write_cache(cache)
-    print(json.dumps(summarise(cache, today)))
+    # Outside the lock: a slow price fetch must not hold up another instance.
+    price_of, prices_as_of = prices.load(CACHE_DIR)
+    print(json.dumps(summarise(cache, today, price_of, prices_as_of)))
 
 
 if __name__ == "__main__":

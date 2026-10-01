@@ -233,3 +233,22 @@ msgid "%1 model"
 msgid_plural "%1 models"
 msgstr[0] "%1 model"
 msgstr[1] "%1 model"
+
+msgctxt "amount in US dollars"
+msgid "$%1"
+msgstr "$%1"
+
+msgid "At API prices: %1"
+msgstr "API fiyatıyla: %1"
+
+msgid "At API prices: no known price"
+msgstr "API fiyatıyla: fiyatı bilinmiyor"
+
+msgid "≈ %1 at API prices, cache included"
+msgstr "API fiyatlarıyla ≈ %1, cache dahil"
+
+msgid "What these tokens would cost on the pay-as-you-go API, cache reads and writes included. Standard list prices from %1; long-context surcharges are not applied."
+msgstr "Bu tokenların kullandıkça öde API'de tutacağı tutar, cache okuma ve yazma dahil. %1 tarihli standart liste fiyatları; uzun bağlam ek ücretleri uygulanmaz."
+
+msgid "Not included: %1 tokens from models with no known price"
+msgstr "Dahil değil: fiyatı bilinmeyen modellerden %1 token"

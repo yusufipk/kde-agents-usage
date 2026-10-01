@@ -41,6 +41,15 @@ ColumnLayout {
     readonly property real claudeTotal: period ? (Number(period.claude) || 0) : 0
     readonly property real codexTotal: period ? (Number(period.codex) || 0) : 0
     readonly property real total: (showClaude ? claudeTotal : 0) + (showCodex ? codexTotal : 0)
+    // What the period would cost at API list prices; models without a known
+    // price are left out and their tokens counted separately.
+    readonly property var periodCost: period && period.cost ? period.cost : null
+    readonly property var periodUnpriced: period && period.unpriced ? period.unpriced : null
+    readonly property real claudeCost: periodCost ? (Number(periodCost.claude) || 0) : 0
+    readonly property real codexCost: periodCost ? (Number(periodCost.codex) || 0) : 0
+    readonly property real cost: (showClaude ? claudeCost : 0) + (showCodex ? codexCost : 0)
+    readonly property real unpricedTokens: periodUnpriced ? (showClaude ? (Number(periodUnpriced.claude) || 0) : 0) + (showCodex ? (Number(periodUnpriced.codex) || 0) : 0) : 0
+    readonly property bool hasCost: !!periodCost && cost > 0
 
     readonly property var days: {
         if (!hasData)
@@ -110,6 +119,7 @@ ColumnLayout {
         const head = rows.slice(0, cap);
         const tail = rows.slice(cap);
         const sum = key => tail.reduce((acc, m) => acc + (Number(m[key]) || 0), 0);
+        const priced = tail.filter(m => typeof m.cost === "number");
         head.push({
             name: i18n("Other"),
             provider: "",
@@ -118,7 +128,8 @@ ColumnLayout {
             input: sum("input"),
             output: sum("output"),
             cacheRead: sum("cacheRead"),
-            cacheWrite: sum("cacheWrite")
+            cacheWrite: sum("cacheWrite"),
+            cost: priced.length ? priced.reduce((acc, m) => acc + m.cost, 0) : null
         });
         return head;
     }
@@ -179,6 +190,17 @@ ColumnLayout {
         return String(s === undefined || s === null ? "" : s).replace(/[<>]/g, "");
     }
 
+    // Always US dollars, whatever the locale's currency: $1,234 / $12.34
+    function money(v) {
+        v = Number(v) || 0;
+        const digits = v >= 100 ? 0 : 2;
+        return i18nc("amount in US dollars", "$%1", Qt.locale().toString(v, 'f', digits));
+    }
+
+    function hasModelCost(m) {
+        return typeof m.cost === "number" && isFinite(m.cost);
+    }
+
     function exact(n) {
         return Qt.locale().toString(Math.round(Number(n) || 0), 'f', 0);
     }
@@ -224,7 +246,8 @@ ColumnLayout {
             i18n("Input: %1", exact(m.input)),
             i18n("Output: %1", exact(m.output)),
             i18n("Cache read: %1", exact(m.cacheRead)),
-            i18n("Cache write: %1", exact(m.cacheWrite))
+            i18n("Cache write: %1", exact(m.cacheWrite)),
+            hasModelCost(m) ? i18n("At API prices: %1", money(m.cost)) : i18n("At API prices: no known price")
         ].join("\n");
     }
 
@@ -346,6 +369,33 @@ ColumnLayout {
             elide: Text.ElideRight
         }
 
+        // Pay-as-you-go equivalent of the same tokens
+        PlasmaComponents3.Label {
+            id: costLabel
+
+            Layout.fillWidth: true
+            visible: tokensView.hasCost
+            text: i18n("≈ %1 at API prices, cache included", tokensView.money(tokensView.cost))
+            elide: Text.ElideRight
+
+            HoverHandler {
+                id: costHover
+            }
+
+            PlasmaComponents3.ToolTip.text: i18n("What these tokens would cost on the pay-as-you-go API, cache reads and writes included. Standard list prices from %1; long-context surcharges are not applied.", tokensView.plain(tokensView.tokens && tokensView.tokens.pricesAsOf))
+            PlasmaComponents3.ToolTip.visible: costHover.hovered
+            PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
+        }
+
+        PlasmaComponents3.Label {
+            Layout.fillWidth: true
+            visible: tokensView.hasCost && tokensView.unpricedTokens > 0
+            text: i18n("Not included: %1 tokens from models with no known price", tokensView.compact(tokensView.unpricedTokens))
+            color: Kirigami.Theme.disabledTextColor
+            font: Kirigami.Theme.smallFont
+            wrapMode: Text.Wrap
+        }
+
         // Legend doubles as the per-series breakdown
         RowLayout {
             Layout.fillWidth: true
@@ -354,8 +404,8 @@ ColumnLayout {
 
             Repeater {
                 model: [
-                    { name: "Claude", value: tokensView.claudeTotal, color: tokensView.claudeColor },
-                    { name: "Codex", value: tokensView.codexTotal, color: tokensView.codexColor }
+                    { name: "Claude", value: tokensView.claudeTotal, cost: tokensView.claudeCost, color: tokensView.claudeColor },
+                    { name: "Codex", value: tokensView.codexTotal, cost: tokensView.codexCost, color: tokensView.codexColor }
                 ]
 
                 delegate: RowLayout {
@@ -379,6 +429,13 @@ ColumnLayout {
                         text: tokensView.compact(legendItem.modelData.value)
                         font.bold: true
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+
+                    PlasmaComponents3.Label {
+                        visible: tokensView.hasCost && legendItem.modelData.cost > 0
+                        text: tokensView.money(legendItem.modelData.cost)
+                        color: Kirigami.Theme.disabledTextColor
+                        font: Kirigami.Theme.smallFont
                     }
                 }
             }
@@ -670,6 +727,13 @@ ColumnLayout {
                     PlasmaComponents3.Label {
                         visible: text.length > 0
                         text: modelRow.providerLabel
+                        color: Kirigami.Theme.disabledTextColor
+                        font: Kirigami.Theme.smallFont
+                    }
+
+                    PlasmaComponents3.Label {
+                        visible: tokensView.hasModelCost(modelRow.modelData)
+                        text: visible ? tokensView.money(modelRow.modelData.cost) : ""
                         color: Kirigami.Theme.disabledTextColor
                         font: Kirigami.Theme.smallFont
                     }
