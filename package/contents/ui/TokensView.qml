@@ -15,6 +15,8 @@ ColumnLayout {
     property var tokens: null
     property bool loading: false
     property string error: ""
+    // Ids the settings leave switched on
+    property var visibleProviders: ["claude", "codex", "opencode"]
     signal refreshRequested()
 
     // Filters live for the session only
@@ -23,32 +25,58 @@ ColumnLayout {
 
     readonly property var periodKeys: ["1", "7", "30", "60", "90", "365"]
     readonly property string periodKey: periodKeys[periodIndex]
-    readonly property bool showClaude: providerIndex !== 2
-    readonly property bool showCodex: providerIndex !== 1
-    readonly property bool stacked: showClaude && showCodex
+
+    // Series colors: the theme accent, its visited-link hue, and positive green,
+    // which stay apart under deutan and protan simulation (validated on Breeze).
+    readonly property color claudeColor: Kirigami.Theme.highlightColor
+    readonly property color codexColor: Kirigami.Theme.visitedLinkColor
+    readonly property color opencodeColor: Kirigami.Theme.positiveTextColor
+    readonly property color otherColor: Kirigami.Theme.disabledTextColor
+
+    // One entry per agent whose logs are counted, in filter and stack order.
+    // Product names stay untranslated, so they are plain strings. Switching an
+    // agent off in the settings drops it from here, and with it the filter box,
+    // the legend and every stacked segment.
+    readonly property var allSeries: [
+        { id: "claude", name: "Claude", color: claudeColor },
+        { id: "codex", name: "Codex", color: codexColor },
+        { id: "opencode", name: "OpenCode", color: opencodeColor }
+    ]
+    readonly property var series: allSeries.filter(s => visibleProviders.indexOf(s.id) >= 0)
+    readonly property var shown: providerIndex === 0 ? series : (series[providerIndex - 1] ? [series[providerIndex - 1]] : [])
+    readonly property bool stacked: shown.length > 1
+    // Every agent is switched off; the data is there but nothing is drawn from it
+    readonly property bool allHidden: hasData && series.length === 0
     // "Today" shows the 7-day chart with today's bar emphasized
     readonly property bool emphasizeToday: periodIndex === 0
 
-    // Series colors: the theme accent and its visited-link hue, which stay
-    // apart under deutan and protan simulation (validated on Breeze).
-    readonly property color claudeColor: Kirigami.Theme.highlightColor
-    readonly property color codexColor: Kirigami.Theme.visitedLinkColor
-    readonly property color otherColor: Kirigami.Theme.disabledTextColor
+    function isShown(provider) {
+        return shown.some(s => s.id === provider);
+    }
+
+    // Switching an agent off can leave the filter pointing past the end of the
+    // list; fall back to "All" rather than showing nothing.
+    onSeriesChanged: {
+        if (providerIndex >= series.length)
+            providerIndex = 0;
+    }
 
     readonly property bool hasData: !!tokens && !!tokens.daily && !!tokens.periods
     readonly property bool scanning: hasData && !!tokens.scanning
     readonly property var period: hasData ? (tokens.periods[periodKey] || null) : null
-    readonly property real claudeTotal: period ? (Number(period.claude) || 0) : 0
-    readonly property real codexTotal: period ? (Number(period.codex) || 0) : 0
-    readonly property real total: (showClaude ? claudeTotal : 0) + (showCodex ? codexTotal : 0)
+    function providerTotal(id) {
+        return period ? (Number(period[id]) || 0) : 0;
+    }
+    function providerCost(id) {
+        return periodCost ? (Number(periodCost[id]) || 0) : 0;
+    }
+    readonly property real total: shown.reduce((acc, s) => acc + providerTotal(s.id), 0)
     // What the period would cost at API list prices; models without a known
     // price are left out and their tokens counted separately.
     readonly property var periodCost: period && period.cost ? period.cost : null
     readonly property var periodUnpriced: period && period.unpriced ? period.unpriced : null
-    readonly property real claudeCost: periodCost ? (Number(periodCost.claude) || 0) : 0
-    readonly property real codexCost: periodCost ? (Number(periodCost.codex) || 0) : 0
-    readonly property real cost: (showClaude ? claudeCost : 0) + (showCodex ? codexCost : 0)
-    readonly property real unpricedTokens: periodUnpriced ? (showClaude ? (Number(periodUnpriced.claude) || 0) : 0) + (showCodex ? (Number(periodUnpriced.codex) || 0) : 0) : 0
+    readonly property real cost: shown.reduce((acc, s) => acc + providerCost(s.id), 0)
+    readonly property real unpricedTokens: shown.reduce((acc, s) => acc + (periodUnpriced ? (Number(periodUnpriced[s.id]) || 0) : 0), 0)
     readonly property bool hasCost: !!periodCost && cost > 0
 
     readonly property var days: {
@@ -85,11 +113,13 @@ ColumnLayout {
             if (!cur || cur.key !== key) {
                 // date is the first day actually inside the period, so a
                 // partial leading week or month is not labelled before it.
-                cur = { key: key, date: d.date, unit: unit, claude: 0, codex: 0 };
+                cur = { key: key, date: d.date, unit: unit };
+                for (const s of tokensView.series)
+                    cur[s.id] = 0;
                 out.push(cur);
             }
-            cur.claude += Number(d.claude) || 0;
-            cur.codex += Number(d.codex) || 0;
+            for (const s of tokensView.series)
+                cur[s.id] += Number(d[s.id]) || 0;
         }
         return out;
     }
@@ -112,7 +142,7 @@ ColumnLayout {
     readonly property var modelRows: {
         if (!period || !Array.isArray(period.models))
             return [];
-        const rows = period.models.filter(m => !!m).filter(m => (m.provider === "claude" && showClaude) || (m.provider === "codex" && showCodex));
+        const rows = period.models.filter(m => !!m).filter(m => tokensView.isShown(m.provider));
         const cap = 8;
         if (rows.length <= cap + 1)
             return rows;
@@ -138,7 +168,7 @@ ColumnLayout {
     spacing: Kirigami.Units.smallSpacing
 
     function dayValue(d) {
-        return (showClaude ? (Number(d.claude) || 0) : 0) + (showCodex ? (Number(d.codex) || 0) : 0);
+        return tokensView.shown.reduce((acc, s) => acc + (Number(d[s.id]) || 0), 0);
     }
 
     function niceCeil(v) {
@@ -151,19 +181,23 @@ ColumnLayout {
     }
 
     function seriesColor(provider) {
-        if (provider === "claude")
-            return claudeColor;
-        if (provider === "codex")
-            return codexColor;
-        return otherColor;
+        const s = tokensView.series.find(s => s.id === provider);
+        return s ? s.color : tokensView.otherColor;
     }
 
     function providerName(provider) {
-        if (provider === "claude")
-            return "Claude";
-        if (provider === "codex")
-            return "Codex";
-        return "";
+        const s = tokensView.series.find(s => s.id === provider);
+        return s ? s.name : "";
+    }
+
+    // One line per series in the day tooltip. The strings stay literal so
+    // xgettext can find them; a computed one would go untranslated.
+    function seriesLine(s, value) {
+        if (s.id === "claude")
+            return i18n("Claude: %1", exact(value));
+        if (s.id === "codex")
+            return i18n("Codex: %1", exact(value));
+        return i18n("OpenCode: %1", exact(value));
     }
 
     // 1.2B / 345M / 12.3K with the locale's decimal separator
@@ -221,8 +255,6 @@ ColumnLayout {
     }
 
     function dayTooltip(d) {
-        const claude = Number(d.claude) || 0;
-        const codex = Number(d.codex) || 0;
         const date = parseDay(d.date);
         let title = dateLabel(d.date);
         if (date && d.unit === "month")
@@ -231,11 +263,9 @@ ColumnLayout {
             title = i18nc("bar tooltip title, %1 is the first day of the week", "Week of %1", dateLabel(d.date));
         const lines = [title];
         if (stacked)
-            lines.push(i18n("Total: %1", exact(claude + codex)));
-        if (showClaude)
-            lines.push(i18n("Claude: %1", exact(claude)));
-        if (showCodex)
-            lines.push(i18n("Codex: %1", exact(codex)));
+            lines.push(i18n("Total: %1", exact(dayValue(d))));
+        for (const s of tokensView.shown)
+            lines.push(tokensView.seriesLine(s, Number(d[s.id]) || 0));
         return lines.join("\n");
     }
 
@@ -270,7 +300,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: Kirigami.Units.gridUnit * 2
         Layout.bottomMargin: Kirigami.Units.gridUnit * 2
-        visible: !tokensView.hasData && !tokensView.loading
+        visible: !tokensView.hasData && !tokensView.loading && !tokensView.allHidden
         iconName: tokensView.error ? "data-error" : "view-statistics"
         text: tokensView.error ? i18n("Could not read token logs") : i18n("No data yet")
         explanation: tokensView.plain(tokensView.error)
@@ -281,11 +311,27 @@ ColumnLayout {
         }
     }
 
+    // The scan worked but the settings hide every agent it could report
+    PlasmaExtras.PlaceholderMessage {
+        Layout.fillWidth: true
+        Layout.topMargin: Kirigami.Units.gridUnit * 2
+        Layout.bottomMargin: Kirigami.Units.gridUnit * 2
+        visible: tokensView.allHidden
+        iconName: "preferences-desktop-plasma"
+        text: i18n("All agents are switched off")
+        explanation: i18n("Turn at least one agent back on in the settings to see its tokens here.")
+        helpfulAction: QQC2.Action {
+            icon.name: "configure"
+            text: i18n("Open settings")
+            onTriggered: root.openConfig()
+        }
+    }
+
     ColumnLayout {
         id: content
 
         Layout.fillWidth: true
-        visible: tokensView.hasData
+        visible: tokensView.hasData && !tokensView.allHidden
         spacing: Kirigami.Units.smallSpacing
         // Refetch keeps the previous render, only dimmed
         opacity: tokensView.loading ? 0.6 : 1
@@ -310,7 +356,7 @@ ColumnLayout {
 
             PlasmaComponents3.ComboBox {
                 Layout.fillWidth: true
-                model: [i18n("All"), "Claude", "Codex"]
+                model: [i18n("All")].concat(tokensView.series.map(s => s.name))
                 currentIndex: tokensView.providerIndex
                 onActivated: index => tokensView.providerIndex = index
             }
@@ -403,10 +449,7 @@ ColumnLayout {
             spacing: Kirigami.Units.largeSpacing
 
             Repeater {
-                model: [
-                    { name: "Claude", value: tokensView.claudeTotal, cost: tokensView.claudeCost, color: tokensView.claudeColor },
-                    { name: "Codex", value: tokensView.codexTotal, cost: tokensView.codexCost, color: tokensView.codexColor }
-                ]
+                model: tokensView.shown.map(s => ({ name: s.name, value: tokensView.providerTotal(s.id), cost: tokensView.providerCost(s.id), color: s.color }))
 
                 delegate: RowLayout {
                     id: legendItem
@@ -481,9 +524,16 @@ ColumnLayout {
             }
 
             function stackHeight(d) {
-                const c = tokensView.showClaude ? barHeight(Number(d.claude) || 0) : 0;
-                const x = tokensView.showCodex ? barHeight(Number(d.codex) || 0) : 0;
-                return c + x + (c > 0 && x > 0 ? gap : 0);
+                let h = 0;
+                let seen = false;
+                for (const s of tokensView.shown) {
+                    const b = barHeight(Number(d[s.id]) || 0);
+                    if (b <= 0)
+                        continue;
+                    h += b + (seen ? gap : 0);
+                    seen = true;
+                }
+                return h;
             }
 
             Layout.fillWidth: true
@@ -552,10 +602,6 @@ ColumnLayout {
 
                     required property var modelData
                     required property int index
-                    readonly property real claude: tokensView.showClaude ? (Number(modelData.claude) || 0) : 0
-                    readonly property real codex: tokensView.showCodex ? (Number(modelData.codex) || 0) : 0
-                    readonly property real claudeH: chart.barHeight(claude)
-                    readonly property real codexH: chart.barHeight(codex)
                     readonly property bool dimmed: tokensView.emphasizeToday && index !== chart.count - 1 && !slotHover.hovered
 
                     x: chart.gutter + index * chart.slotWidth
@@ -585,43 +631,54 @@ ColumnLayout {
                         color: Qt.alpha(Kirigami.Theme.textColor, 0.06)
                     }
 
-                    // Claude segment sits on the baseline
-                    Rectangle {
-                        id: claudeBar
+                    // One segment per shown series, stacked on the baseline. The
+                    // model is reversed so the Column fills upwards and the
+                    // first series ends up at the bottom; a zero-height segment
+                    // is hidden, and a Column skips hidden children, so the
+                    // surface gap appears only between segments that are drawn.
+                    Column {
+                        id: barStack
+
+                        readonly property var model: tokensView.shown.slice().reverse()
+                        // Index in the reversed model of the topmost drawn
+                        // segment, the only one whose top corners are rounded.
+                        readonly property int topIndex: {
+                            let top = -1;
+                            for (let i = 0; i < model.length; i++) {
+                                if (chart.barHeight(Number(slot.modelData[model[i].id]) || 0) > 0)
+                                    top = i;
+                            }
+                            return top;
+                        }
+
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: parent.bottom
-                        width: chart.barWidth
-                        height: slot.claudeH
-                        visible: height > 0
-                        color: slotHover.hovered ? Qt.lighter(tokensView.claudeColor, 1.15) : tokensView.claudeColor
-                        topLeftRadius: slot.codexH > 0 ? 0 : chart.cornerRadius
-                        topRightRadius: topLeftRadius
+                        spacing: chart.gap
 
-                        Behavior on height {
-                            NumberAnimation {
-                                duration: Kirigami.Units.longDuration
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
+                        Repeater {
+                            model: barStack.model
 
-                    // Codex segment stacks on the Claude bar with a surface gap,
-                    // following it while it animates
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: claudeBar.visible ? claudeBar.top : parent.bottom
-                        anchors.bottomMargin: claudeBar.visible ? chart.gap : 0
-                        width: chart.barWidth
-                        height: slot.codexH
-                        visible: height > 0
-                        color: slotHover.hovered ? Qt.lighter(tokensView.codexColor, 1.15) : tokensView.codexColor
-                        topLeftRadius: chart.cornerRadius
-                        topRightRadius: chart.cornerRadius
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
 
-                        Behavior on height {
-                            NumberAnimation {
-                                duration: Kirigami.Units.longDuration
-                                easing.type: Easing.OutCubic
+                                readonly property real barH: chart.barHeight(Number(slot.modelData[modelData.id]) || 0)
+
+                                width: chart.barWidth
+                                height: barH
+                                visible: barH > 0
+                                color: slotHover.hovered ? Qt.lighter(modelData.color, 1.15) : modelData.color
+                                topLeftRadius: index === barStack.topIndex ? chart.cornerRadius : 0
+                                topRightRadius: topLeftRadius
+
+                                // The Column re-lays out while a height animates,
+                                // so the segments above follow along.
+                                Behavior on height {
+                                    NumberAnimation {
+                                        duration: Kirigami.Units.longDuration
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
                             }
                         }
                     }
