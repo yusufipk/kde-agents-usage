@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
-"""Print daily and per-model token totals from local Claude Code and Codex logs.
+"""Print daily and per-model token totals from local Claude Code, Codex and
+OpenCode logs.
 
 Claude Code writes one JSON line per API response under ~/.claude/projects,
 the Codex CLI writes cumulative token counters into ~/.codex/sessions. Both are
 append-only, so each file is parsed once and afterwards only from the byte
-offset reached last time; the per-file results live in a cache. Only the last
-RETENTION_DAYS days are kept.
+offset reached last time; the per-file results live in a cache. OpenCode instead
+keeps one SQLite row per assistant message, so its message table is summed
+whole on every run. Only the last RETENTION_DAYS days are kept.
 
-Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 365 days),
-pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, cost: {claude, codex},
-unpriced: {claude, codex}, models: [Model]}}} where a Model is
-{name, provider, total, input, output, cacheRead, cacheWrite, cost}. cost is the
-USD the tokens would cost at API list prices; tokens of models without a known
-price are left out of it and counted in unpriced, and such a Model has cost null.
+Output: {generatedAt, scanning, daily: [{date, claude, codex, opencode}] (last
+365 days), pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex,
+opencode, cost: {claude, codex, opencode}, unpriced: {claude, codex, opencode},
+models: [Model]}}} where a Model is {name, provider, total, input, output,
+cacheRead, cacheWrite, cost}. cost is the USD the tokens would cost at API list
+prices; tokens of models without a known price are left out of it and counted in
+unpriced, and such a Model has cost null.
 """
 
 import fcntl
 import json
 import os
 import re
+import sqlite3
 import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
@@ -27,21 +31,38 @@ from datetime import date, datetime, timedelta, timezone
 # The widget runs this with python3 -I, which leaves the script's own
 # directory off sys.path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import opencode_store  # noqa: E402
 import prices  # noqa: E402
 
 HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude"), "projects")
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_DIRS = [os.path.join(CODEX_HOME, "sessions"), os.path.join(CODEX_HOME, "archived_sessions")]
+OPENCODE_DB = opencode_store.db_path()
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
 CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v4.json")
 RETENTION_DAYS = 366
 WORKERS = 4
 
+# The counters of one assistant response live in the message row as JSON. OpenCode
+# has no index on the role, so this reads every row once; that is a few tens of
+# milliseconds even for a database of a gigabyte, and the table holds thousands
+# of rows, not the millions a JSONL transcript would reach.
+OPENCODE_SQL = (
+    "SELECT time_created, json_extract(data,'$.modelID'),"
+    " json_extract(data,'$.tokens.input'), json_extract(data,'$.tokens.output'),"
+    " json_extract(data,'$.tokens.reasoning'),"
+    " json_extract(data,'$.tokens.cache.read'), json_extract(data,'$.tokens.cache.write')"
+    " FROM message WHERE json_extract(data,'$.role')='assistant' AND time_created>=?"
+)
 
 
 def local_day(ts):
     return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().date().isoformat()
+
+
+def day_from_ms(ms):
+    return datetime.fromtimestamp(ms / 1000).date().isoformat()
 
 
 def add(contrib, day, model, comps):
@@ -167,6 +188,35 @@ def parse(job):
         return path, None, offset, state
 
 
+def scan_opencode(cutoff_ts):
+    """Return {day: {model: comps}} from the OpenCode message table, or None.
+
+    Every row is read fresh rather than resumed from a position: OpenCode
+    rewrites a message row as its response completes, so a watermark would keep
+    the token counts of a response that was still streaming. A full pass also
+    cannot double count, since each row lands in the totals exactly once.
+    """
+    contrib = {}
+    try:
+        con = opencode_store.connect()
+    except sqlite3.Error:
+        return None
+    try:
+        for created, model, inp, outp, reas, cread, cwrite in con.execute(OPENCODE_SQL, (int(cutoff_ts * 1000),)):
+            if not model or not created:
+                continue
+            # Reasoning is billed as output, and OpenCode reports it apart from
+            # the output count. Cache writes carry no TTL, so they price as 5m.
+            add(contrib, day_from_ms(created), model, [inp or 0, (outp or 0) + (reas or 0), cread or 0, cwrite or 0, 0])
+    except sqlite3.Error:
+        # Locked, truncated mid-write, or a schema from another OpenCode
+        # version: keep the totals already cached rather than reporting none.
+        return None
+    finally:
+        con.close()
+    return contrib
+
+
 def list_files(cutoff_ts):
     found = {}
     for kind, roots in (("claude", [CLAUDE_DIR]), ("codex", CODEX_DIRS)):
@@ -182,6 +232,14 @@ def list_files(cutoff_ts):
                         continue
                     if st.st_mtime >= cutoff_ts:
                         found[p] = (kind, st.st_size, st.st_mtime)
+    # OpenCode keeps a database rather than a tree of logs, so it is one entry.
+    if OPENCODE_DB:
+        try:
+            st = os.stat(OPENCODE_DB)
+        except OSError:
+            pass
+        else:
+            found[OPENCODE_DB] = ("opencode", st.st_size, st.st_mtime)
     return found
 
 
@@ -218,6 +276,9 @@ def update(cache, today):
 
     jobs = []
     for p, (kind, size, mtime) in found.items():
+        if kind == "opencode":
+            # Not a file to tail; update() reads the database itself.
+            continue
         entry = files.get(p)
         if entry and entry["size"] == size and entry["mtime"] == mtime:
             continue
@@ -270,6 +331,15 @@ def update(cache, today):
                 for model, comps in models.items():
                     add(entry["contrib"], day, model, comps)
 
+    # scan_opencode() returns a whole period at once, so its totals replace the
+    # cached ones instead of being added to them. A failed read leaves the entry
+    # alone, which keeps the last good numbers rather than dropping to zero.
+    if OPENCODE_DB in found:
+        contrib = scan_opencode(cutoff_ts)
+        if contrib is not None:
+            size, mtime = found[OPENCODE_DB][1:]
+            files[OPENCODE_DB] = {"kind": "opencode", "offset": 0, "state": {}, "contrib": contrib, "ids": {}, "size": size, "mtime": mtime}
+
     for entry in files.values():
         for day in [d for d in entry["contrib"] if d < cutoff]:
             del entry["contrib"][day]
@@ -292,15 +362,16 @@ def pretty_model(provider, model):
 
 def summarise(cache, today, price_of, prices_as_of):
     all_days = [(today - timedelta(days=i)).isoformat() for i in range(364, -1, -1)]
-    daily = {d: {"date": d, "claude": 0, "codex": 0} for d in all_days}
+    daily = {d: {"date": d, "claude": 0, "codex": 0, "opencode": 0} for d in all_days}
     periods = {}
     for n in (1, 7, 30, 60, 90, 365):
         periods[str(n)] = {
             "first": (today - timedelta(days=n - 1)).isoformat(),
             "claude": 0,
             "codex": 0,
-            "cost": {"claude": 0.0, "codex": 0.0},
-            "unpriced": {"claude": 0, "codex": 0},
+            "opencode": 0,
+            "cost": {"claude": 0.0, "codex": 0.0, "opencode": 0.0},
+            "unpriced": {"claude": 0, "codex": 0, "opencode": 0},
             "models": {},
         }
 
@@ -350,6 +421,7 @@ def summarise(cache, today, price_of, prices_as_of):
         out[key] = {
             "claude": p["claude"],
             "codex": p["codex"],
+            "opencode": p["opencode"],
             "cost": {k: round(v, 4) for k, v in p["cost"].items()},
             "unpriced": p["unpriced"],
             "models": models,

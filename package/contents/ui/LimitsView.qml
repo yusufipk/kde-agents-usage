@@ -15,12 +15,18 @@ ColumnLayout {
     property var usage: null
     property bool loading: false
     property string lastError: ""
+    // Ids the settings leave switched on
+    property var visibleProviders: []
     // True while the popup is open; drives the relative-time clock
     property bool active: false
     signal refreshRequested()
 
-    readonly property var providers: (usage && Array.isArray(usage.providers)) ? usage.providers.filter(p => !!p) : []
+    readonly property var allProviders: (usage && Array.isArray(usage.providers)) ? usage.providers.filter(p => !!p) : []
+    readonly property var providers: allProviders.filter(p => visibleProviders.indexOf(p.id) >= 0)
     readonly property bool hasData: providers.length > 0
+    // Every agent is switched off, so the fetch is fine but there is nothing
+    // left to draw; saying "no data" here would blame the wrong thing.
+    readonly property bool allHidden: hasData === false && allProviders.length > 0 && visibleProviders.length === 0
     // Wall clock used for relative reset times; bumped by the timer below.
     property real now: Date.now()
 
@@ -67,6 +73,8 @@ ColumnLayout {
             return i18n("Weekly");
         case "weekly_scoped":
             return w.model ? i18n("Weekly · %1", w.model) : i18n("Weekly");
+        case "monthly":
+            return i18n("Monthly");
         default:
             return w.key || "";
         }
@@ -86,6 +94,10 @@ ColumnLayout {
             return i18n("Could not renew the Codex session, sign in again with codex login");
         case "codex_save_failed":
             return i18n("Could not save the renewed Codex session (%1), codex login may be needed", detail || "");
+        case "opencode_no_key":
+            return i18n("No OpenCode Go API key found, connect a Go plan in OpenCode");
+        case "opencode_auth":
+            return i18n("OpenCode Go rejected the API key, reconnect the plan in OpenCode");
         case "http":
             return i18n("HTTP error %1", detail || "");
         case "network":
@@ -146,7 +158,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: Kirigami.Units.gridUnit * 2
         Layout.bottomMargin: Kirigami.Units.gridUnit * 2
-        visible: !limits.hasData && !limits.loading
+        visible: !limits.hasData && !limits.loading && !limits.allHidden
         iconName: limits.lastError ? "data-error" : "speedometer"
         text: limits.lastError ? i18n("Could not fetch limits") : i18n("No data yet")
         explanation: limits.plain(limits.lastError)
@@ -154,6 +166,21 @@ ColumnLayout {
             icon.name: "view-refresh"
             text: i18n("Try again")
             onTriggered: limits.refreshRequested()
+        }
+    }
+
+    PlasmaExtras.PlaceholderMessage {
+        Layout.fillWidth: true
+        Layout.topMargin: Kirigami.Units.gridUnit * 2
+        Layout.bottomMargin: Kirigami.Units.gridUnit * 2
+        visible: limits.allHidden
+        iconName: "preferences-desktop-plasma"
+        text: i18n("All agents are switched off")
+        explanation: i18n("Turn at least one agent back on in the settings to see its limits here.")
+        helpfulAction: QQC2.Action {
+            icon.name: "configure"
+            text: i18n("Open settings")
+            onTriggered: root.openConfig()
         }
     }
 

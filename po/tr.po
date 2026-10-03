@@ -1,11 +1,34 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: kde-agents-usage\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-03 18:15+0300\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Claude:"
+msgstr "Claude:"
+
+msgid "Limits and tokens"
+msgstr "Limitler ve tokenlar"
+
+msgid "Codex:"
+msgstr "Codex:"
+
+msgid "OpenCode:"
+msgstr "OpenCode:"
+
+msgid "Go limits and tokens"
+msgstr "Go limitleri ve tokenları"
+
+msgid ""
+"A switched-off agent takes no room in either tab and is left out of the tray "
+"icon."
+msgstr ""
+"Kapatılan ajan iki sekmede de yer kaplamaz ve tepsi simgesinde gösterilmez."
 
 msgid "Limits"
 msgstr "Limitler"
@@ -16,8 +39,15 @@ msgstr "Tokenlar"
 msgid "Refresh"
 msgstr "Yenile"
 
-msgid "From local Claude Code and Codex logs; claude.ai chats are not included."
-msgstr "Yerel Claude Code ve Codex kayıtlarından; claude.ai sohbetleri dahil değil."
+msgid "Settings"
+msgstr "Ayarlar"
+
+msgid ""
+"From local Claude Code, Codex and OpenCode logs; claude.ai chats are not "
+"included."
+msgstr ""
+"Yerel Claude Code, Codex ve OpenCode kayıtlarından; claude.ai sohbetleri "
+"dahil değil."
 
 msgid "Refresh failed"
 msgstr "Yenileme başarısız"
@@ -41,11 +71,15 @@ msgstr "Haftalık"
 msgid "Weekly · %1"
 msgstr "Haftalık · %1"
 
+msgid "Monthly"
+msgstr "Aylık"
+
 msgid "Claude Code login not found, sign in with claude"
 msgstr "Claude Code girişi bulunamadı, claude ile giriş yap"
 
 msgid "Claude Code session expired, open claude once to renew it"
-msgstr "Claude Code oturumunun süresi dolmuş, yenilemek için claude'u bir kez aç"
+msgstr ""
+"Claude Code oturumunun süresi dolmuş, yenilemek için claude'u bir kez aç"
 
 msgid "Claude session is invalid, open claude once"
 msgstr "Claude oturumu geçersiz, claude'u bir kez aç"
@@ -56,8 +90,15 @@ msgstr "Codex ChatGPT girişi bulunamadı, codex login ile giriş yap"
 msgid "Could not renew the Codex session, sign in again with codex login"
 msgstr "Codex oturumu yenilenemedi, codex login ile tekrar giriş yap"
 
-msgid "Could not save the renewed Codex session (%1), codex login may be needed"
+msgid ""
+"Could not save the renewed Codex session (%1), codex login may be needed"
 msgstr "Yenilenen Codex oturumu kaydedilemedi (%1), codex login gerekebilir"
+
+msgid "No OpenCode Go API key found, connect a Go plan in OpenCode"
+msgstr "OpenCode Go API anahtarı bulunamadı, OpenCode'da bir Go planına bağlan"
+
+msgid "OpenCode Go rejected the API key, reconnect the plan in OpenCode"
+msgstr "OpenCode Go API anahtarını reddetti, planı OpenCode'da yeniden bağla"
 
 msgid "HTTP error %1"
 msgstr "HTTP hatası %1"
@@ -95,6 +136,15 @@ msgstr "Henüz veri yok"
 msgid "Try again"
 msgstr "Tekrar dene"
 
+msgid "All agents are switched off"
+msgstr "Bütün ajanlar kapatılmış"
+
+msgid "Turn at least one agent back on in the settings to see its limits here."
+msgstr "Limitlerini burada görmek için ayarlardan en az bir ajanı tekrar aç."
+
+msgid "Open settings"
+msgstr "Ayarları aç"
+
 msgctxt "cached values are shown"
 msgid "stale"
 msgstr "eski veri"
@@ -102,6 +152,7 @@ msgstr "eski veri"
 msgid "No active limit window yet"
 msgstr "Henüz başlamış bir limit penceresi yok"
 
+#, javascript-format
 msgctxt "remaining percentage"
 msgid "%1%"
 msgstr "%%1"
@@ -128,6 +179,15 @@ msgstr "veri yok"
 msgid "Other"
 msgstr "Diğer"
 
+msgid "Claude: %1"
+msgstr "Claude: %1"
+
+msgid "Codex: %1"
+msgstr "Codex: %1"
+
+msgid "OpenCode: %1"
+msgstr "OpenCode: %1"
+
 msgctxt "billion tokens, compact"
 msgid "%1B"
 msgstr "%1 Mr"
@@ -140,18 +200,16 @@ msgctxt "thousand tokens, compact"
 msgid "%1K"
 msgstr "%1 B"
 
+msgctxt "amount in US dollars"
+msgid "$%1"
+msgstr "$%1"
+
 msgctxt "bar tooltip title, %1 is the first day of the week"
 msgid "Week of %1"
 msgstr "%1 haftası"
 
 msgid "Total: %1"
 msgstr "Toplam: %1"
-
-msgid "Claude: %1"
-msgstr "Claude: %1"
-
-msgid "Codex: %1"
-msgstr "Codex: %1"
 
 msgid "Input: %1"
 msgstr "Girdi: %1"
@@ -165,11 +223,20 @@ msgstr "Önbellek okuma: %1"
 msgid "Cache write: %1"
 msgstr "Önbellek yazma: %1"
 
+msgid "At API prices: %1"
+msgstr "API fiyatıyla: %1"
+
+msgid "At API prices: no known price"
+msgstr "API fiyatıyla: fiyatı bilinmiyor"
+
 msgid "Reading token logs…"
 msgstr "Token kayıtları okunuyor…"
 
 msgid "Could not read token logs"
 msgstr "Token kayıtları okunamadı"
+
+msgid "Turn at least one agent back on in the settings to see its tokens here."
+msgstr "Tokenlarını burada görmek için ayarlardan en az bir ajanı tekrar aç."
 
 msgid "Today"
 msgstr "Bugün"
@@ -213,8 +280,20 @@ msgstr "Toplam token, son 1 yıl"
 msgid "Total tokens, last 7 days"
 msgstr "Toplam token, son 7 gün"
 
-msgid "Monthly"
-msgstr "Aylık"
+msgid "≈ %1 at API prices, cache included"
+msgstr "API fiyatlarıyla ≈ %1, cache dahil"
+
+msgid ""
+"What these tokens would cost on the pay-as-you-go API, cache reads and "
+"writes included. Standard list prices from %1; long-context surcharges are "
+"not applied."
+msgstr ""
+"Bu tokenların kullandıkça öde API'de tutacağı tutar, cache okuma ve yazma "
+"dahil. %1 tarihli standart liste fiyatları; uzun bağlam ek ücretleri "
+"uygulanmaz."
+
+msgid "Not included: %1 tokens from models with no known price"
+msgstr "Dahil değil: fiyatı bilinmeyen modellerden %1 token"
 
 msgctxt "chart title, tokens per week"
 msgid "Weekly"
@@ -234,21 +313,5 @@ msgid_plural "%1 models"
 msgstr[0] "%1 model"
 msgstr[1] "%1 model"
 
-msgctxt "amount in US dollars"
-msgid "$%1"
-msgstr "$%1"
-
-msgid "At API prices: %1"
-msgstr "API fiyatıyla: %1"
-
-msgid "At API prices: no known price"
-msgstr "API fiyatıyla: fiyatı bilinmiyor"
-
-msgid "≈ %1 at API prices, cache included"
-msgstr "API fiyatlarıyla ≈ %1, cache dahil"
-
-msgid "What these tokens would cost on the pay-as-you-go API, cache reads and writes included. Standard list prices from %1; long-context surcharges are not applied."
-msgstr "Bu tokenların kullandıkça öde API'de tutacağı tutar, cache okuma ve yazma dahil. %1 tarihli standart liste fiyatları; uzun bağlam ek ücretleri uygulanmaz."
-
-msgid "Not included: %1 tokens from models with no known price"
-msgstr "Dahil değil: fiyatı bilinmeyen modellerden %1 token"
+msgid "Agents"
+msgstr "Ajanlar"

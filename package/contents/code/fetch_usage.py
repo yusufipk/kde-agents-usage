@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Print remaining usage limits for Claude and OpenAI Codex as JSON.
+"""Print remaining usage limits for Claude, OpenAI Codex and OpenCode Go as JSON.
 
 Reads the OAuth credentials that Claude Code and the Codex CLI already store
-on disk and asks each service for the current rate-limit windows. Stdlib only,
-so the plasmoid needs nothing beyond python3.
+on disk and asks each service for the current rate-limit windows. OpenCode has
+no such login for its Go plan, but it does keep the API key it calls the plan
+with, and that key answers the plan's usage endpoint. Stdlib only, so the
+plasmoid needs nothing beyond python3.
 
 Output: {"fetchedAt": ISO, "providers": [Provider, ...]} where a Provider is
 {id, name, plan, ok, stale, errorCode, errorDetail,
@@ -17,12 +19,18 @@ import base64
 import fcntl
 import json
 import os
+import sys
 import tempfile
 import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+
+# The widget runs this with python3 -I, which leaves the script's own
+# directory off sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import opencode_store  # noqa: E402
 
 HOME = os.path.expanduser("~")
 CLAUDE_CREDS = os.path.join(HOME, ".claude", ".credentials.json")
@@ -36,6 +44,10 @@ CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
 CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 # Public OAuth client id of the Codex CLI (the same value the CLI sends).
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+OPENCODE_GO_URL = "https://opencode.ai/zen/go/v1/usage"
+# The Go plan reports how much of each window is spent rather than how much is
+# left, and names the windows itself; key is the local label, value the field.
+OPENCODE_WINDOWS = (("rolling", "session"), ("weekly", "weekly"), ("monthly", "monthly"))
 TIMEOUT = 15
 
 
@@ -263,10 +275,53 @@ def fetch_codex():
     return {"plan": CODEX_PLAN_NAMES.get(plan, plan.capitalize()) if plan else None, "windows": windows}
 
 
+# OpenCode Go
+
+
+def load_opencode_key():
+    """The API key OpenCode keeps for its Go plan, or None when it has none."""
+    try:
+        with open(opencode_store.auth_path()) as f:
+            entry = json.load(f).get("opencode-go") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    return entry.get("key") if entry.get("type") == "api" else None
+
+
+def fetch_opencode():
+    key = load_opencode_key()
+    if not key:
+        raise FetchError("opencode_no_key")
+
+    try:
+        data = http_json(OPENCODE_GO_URL, {
+            "Authorization": "Bearer " + key,
+            "User-Agent": "agents-usage-plasmoid",
+            "Accept": "application/json",
+        })
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise FetchError("opencode_auth")
+        raise FetchError("http", str(e.code))
+
+    usage = data.get("usage") or {}
+    windows = []
+    for field, label in OPENCODE_WINDOWS:
+        w = usage.get(field) or {}
+        # A window that has not started yet, or that the plan reports as
+        # suspended, is left out rather than drawn as an empty meter.
+        if w.get("status") != "ok" or w.get("percent") is None:
+            continue
+        windows.append(window(label, w["percent"], w.get("resetsAt")))
+    windows.sort(key=lambda w: w["key"] != "session")
+    # The endpoint names no plan, but it is the Go plan's own.
+    return {"plan": "Go", "windows": windows}
+
+
 # Main
 
 
-PROVIDERS = (("claude", "Claude", fetch_claude), ("codex", "Codex", fetch_codex))
+PROVIDERS = (("claude", "Claude", fetch_claude), ("codex", "Codex", fetch_codex), ("opencode", "OpenCode", fetch_opencode))
 
 
 def expire_window(w):
@@ -315,6 +370,10 @@ def main():
         elif pid in cache:
             cached = dict(cache[pid], windows=[expire_window(w) for w in cache[pid].get("windows", [])])
             providers.append({"id": pid, "name": name, "ok": False, "stale": True, "errorCode": error[0], "errorDetail": error[1], **cached})
+        elif error[0] == "opencode_no_key":
+            # Most OpenCode users are on its free models and have no Go plan, so
+            # a missing key is not worth a row; the Tokens tab still counts them.
+            continue
         else:
             providers.append({"id": pid, "name": name, "ok": False, "stale": False, "errorCode": error[0], "errorDetail": error[1], "plan": None, "windows": []})
 

@@ -70,6 +70,20 @@ PlasmaExtras.Representation {
                 PlasmaComponents3.ToolTip.visible: hovered
                 PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
+
+            // Tray widgets have a short context menu that is easy to miss, and
+            // which only offers the settings once the pointer is over the icon,
+            // so the popup carries its own way in.
+            PlasmaComponents3.ToolButton {
+                icon.name: "configure"
+                text: i18n("Settings")
+                display: PlasmaComponents3.AbstractButton.IconOnly
+                onClicked: root.openConfig()
+
+                PlasmaComponents3.ToolTip.text: text
+                PlasmaComponents3.ToolTip.visible: hovered
+                PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
         }
     }
 
@@ -98,6 +112,7 @@ PlasmaExtras.Representation {
                 usage: root.usage
                 loading: root.loading
                 lastError: root.lastError
+                visibleProviders: root.visibleProviders
                 active: root.expanded
                 onRefreshRequested: root.refresh()
             }
@@ -115,6 +130,7 @@ PlasmaExtras.Representation {
                 tokens: root.tokens
                 loading: root.tokensLoading
                 error: root.tokensError
+                visibleProviders: root.visibleProviders
                 onRefreshRequested: root.refreshTokens()
             }
         }
@@ -139,7 +155,7 @@ PlasmaExtras.Representation {
             PlasmaComponents3.Label {
                 Layout.fillWidth: true
                 visible: !full.limitsTab
-                text: i18n("From local Claude Code and Codex logs; claude.ai chats are not included.")
+                text: i18n("From local Claude Code, Codex and OpenCode logs; claude.ai chats are not included.")
                 color: Kirigami.Theme.disabledTextColor
                 font: Kirigami.Theme.smallFont
                 wrapMode: Text.Wrap

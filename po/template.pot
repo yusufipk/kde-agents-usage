@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-01 13:02+0300\n"
+"POT-Creation-Date: 2026-10-03 18:15+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,26 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+msgid "Claude:"
+msgstr ""
+
+msgid "Limits and tokens"
+msgstr ""
+
+msgid "Codex:"
+msgstr ""
+
+msgid "OpenCode:"
+msgstr ""
+
+msgid "Go limits and tokens"
+msgstr ""
+
+msgid ""
+"A switched-off agent takes no room in either tab and is left out of the tray "
+"icon."
+msgstr ""
 
 msgid "Limits"
 msgstr ""
@@ -27,8 +47,12 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
+msgid "Settings"
+msgstr ""
+
 msgid ""
-"From local Claude Code and Codex logs; claude.ai chats are not included."
+"From local Claude Code, Codex and OpenCode logs; claude.ai chats are not "
+"included."
 msgstr ""
 
 msgid "Refresh failed"
@@ -53,6 +77,9 @@ msgstr ""
 msgid "Weekly · %1"
 msgstr ""
 
+msgid "Monthly"
+msgstr ""
+
 msgid "Claude Code login not found, sign in with claude"
 msgstr ""
 
@@ -70,6 +97,12 @@ msgstr ""
 
 msgid ""
 "Could not save the renewed Codex session (%1), codex login may be needed"
+msgstr ""
+
+msgid "No OpenCode Go API key found, connect a Go plan in OpenCode"
+msgstr ""
+
+msgid "OpenCode Go rejected the API key, reconnect the plan in OpenCode"
 msgstr ""
 
 msgid "HTTP error %1"
@@ -108,6 +141,15 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
+msgid "All agents are switched off"
+msgstr ""
+
+msgid "Turn at least one agent back on in the settings to see its limits here."
+msgstr ""
+
+msgid "Open settings"
+msgstr ""
+
 msgctxt "cached values are shown"
 msgid "stale"
 msgstr ""
@@ -142,6 +184,15 @@ msgstr ""
 msgid "Other"
 msgstr ""
 
+msgid "Claude: %1"
+msgstr ""
+
+msgid "Codex: %1"
+msgstr ""
+
+msgid "OpenCode: %1"
+msgstr ""
+
 msgctxt "billion tokens, compact"
 msgid "%1B"
 msgstr ""
@@ -154,17 +205,15 @@ msgctxt "thousand tokens, compact"
 msgid "%1K"
 msgstr ""
 
+msgctxt "amount in US dollars"
+msgid "$%1"
+msgstr ""
+
 msgctxt "bar tooltip title, %1 is the first day of the week"
 msgid "Week of %1"
 msgstr ""
 
 msgid "Total: %1"
-msgstr ""
-
-msgid "Claude: %1"
-msgstr ""
-
-msgid "Codex: %1"
 msgstr ""
 
 msgid "Input: %1"
@@ -179,10 +228,19 @@ msgstr ""
 msgid "Cache write: %1"
 msgstr ""
 
+msgid "At API prices: %1"
+msgstr ""
+
+msgid "At API prices: no known price"
+msgstr ""
+
 msgid "Reading token logs…"
 msgstr ""
 
 msgid "Could not read token logs"
+msgstr ""
+
+msgid "Turn at least one agent back on in the settings to see its tokens here."
 msgstr ""
 
 msgid "Today"
@@ -227,7 +285,16 @@ msgstr ""
 msgid "Total tokens, last 7 days"
 msgstr ""
 
-msgid "Monthly"
+msgid "≈ %1 at API prices, cache included"
+msgstr ""
+
+msgid ""
+"What these tokens would cost on the pay-as-you-go API, cache reads and "
+"writes included. Standard list prices from %1; long-context surcharges are "
+"not applied."
+msgstr ""
+
+msgid "Not included: %1 tokens from models with no known price"
 msgstr ""
 
 msgctxt "chart title, tokens per week"
@@ -248,21 +315,5 @@ msgid_plural "%1 models"
 msgstr[0] ""
 msgstr[1] ""
 
-msgctxt "amount in US dollars"
-msgid "$%1"
-msgstr ""
-
-msgid "At API prices: %1"
-msgstr ""
-
-msgid "At API prices: no known price"
-msgstr ""
-
-msgid "≈ %1 at API prices, cache included"
-msgstr ""
-
-msgid "What these tokens would cost on the pay-as-you-go API, cache reads and writes included. Standard list prices from %1; long-context surcharges are not applied."
-msgstr ""
-
-msgid "Not included: %1 tokens from models with no known price"
+msgid "Agents"
 msgstr ""
