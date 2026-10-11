@@ -16,8 +16,8 @@ msgstr "Tokenlar"
 msgid "Refresh"
 msgstr "Yenile"
 
-msgid "From local Claude Code and Codex logs; claude.ai chats are not included."
-msgstr "Yerel Claude Code ve Codex kayıtlarından; claude.ai sohbetleri dahil değil."
+msgid "From local Claude Code and Codex logs plus the account-wide Z.ai usage; claude.ai chats are not included."
+msgstr "Yerel Claude Code ve Codex kayıtları ile hesap geneli Z.ai kullanımından; claude.ai sohbetleri dahil değil."
 
 msgid "Refresh failed"
 msgstr "Yenileme başarısız"
@@ -58,6 +58,21 @@ msgstr "Codex oturumu yenilenemedi, codex login ile tekrar giriş yap"
 
 msgid "Could not save the renewed Codex session (%1), codex login may be needed"
 msgstr "Yenilenen Codex oturumu kaydedilemedi (%1), codex login gerekebilir"
+
+msgid "OpenCode API key not found, sign in with opencode auth login"
+msgstr "OpenCode API anahtarı bulunamadı, opencode auth login ile giriş yap"
+
+msgid "OpenCode API key for %1 not found, sign in with opencode auth login"
+msgstr "%1 için OpenCode API anahtarı bulunamadı, opencode auth login ile giriş yap"
+
+msgid "OpenCode API key is invalid, sign in again with opencode auth login"
+msgstr "OpenCode API anahtarı geçersiz, opencode auth login ile tekrar giriş yap"
+
+msgid "The %1 API key is invalid, sign in again with opencode auth login"
+msgstr "%1 API anahtarı geçersiz, opencode auth login ile tekrar giriş yap"
+
+msgid "The service answered with an unreadable response"
+msgstr "Servis okunamayan bir yanıt döndürdü"
 
 msgid "HTTP error %1"
 msgstr "HTTP hatası %1"
@@ -152,6 +167,9 @@ msgstr "Claude: %1"
 
 msgid "Codex: %1"
 msgstr "Codex: %1"
+
+msgid "Z.ai: %1"
+msgstr "Z.ai: %1"
 
 msgid "Input: %1"
 msgstr "Girdi: %1"

@@ -23,16 +23,21 @@ ColumnLayout {
 
     readonly property var periodKeys: ["1", "7", "30", "60", "90", "365"]
     readonly property string periodKey: periodKeys[periodIndex]
-    readonly property bool showClaude: providerIndex !== 2
-    readonly property bool showCodex: providerIndex !== 1
-    readonly property bool stacked: showClaude && showCodex
+    readonly property string providerFilter: ["all", "claude", "codex", "zai"][providerIndex]
+    readonly property bool showClaude: providerFilter === "all" || providerFilter === "claude"
+    readonly property bool showCodex: providerFilter === "all" || providerFilter === "codex"
+    readonly property bool showZai: providerFilter === "all" || providerFilter === "zai"
+    readonly property bool stacked: showClaude && showCodex && showZai
+    readonly property int seriesCount: (showClaude ? 1 : 0) + (showCodex ? 1 : 0) + (showZai ? 1 : 0)
     // "Today" shows the 7-day chart with today's bar emphasized
     readonly property bool emphasizeToday: periodIndex === 0
 
-    // Series colors: the theme accent and its visited-link hue, which stay
-    // apart under deutan and protan simulation (validated on Breeze).
+    // Series colors: the theme accent, its visited-link and warning hues,
+    // which stay apart under deutan and protan simulation (validated on
+    // Breeze for the first two).
     readonly property color claudeColor: Kirigami.Theme.highlightColor
     readonly property color codexColor: Kirigami.Theme.visitedLinkColor
+    readonly property color zaiColor: Kirigami.Theme.warningColor
     readonly property color otherColor: Kirigami.Theme.disabledTextColor
 
     readonly property bool hasData: !!tokens && !!tokens.daily && !!tokens.periods
@@ -40,15 +45,17 @@ ColumnLayout {
     readonly property var period: hasData ? (tokens.periods[periodKey] || null) : null
     readonly property real claudeTotal: period ? (Number(period.claude) || 0) : 0
     readonly property real codexTotal: period ? (Number(period.codex) || 0) : 0
-    readonly property real total: (showClaude ? claudeTotal : 0) + (showCodex ? codexTotal : 0)
+    readonly property real zaiTotal: period ? (Number(period.zai) || 0) : 0
+    readonly property real total: (showClaude ? claudeTotal : 0) + (showCodex ? codexTotal : 0) + (showZai ? zaiTotal : 0)
     // What the period would cost at API list prices; models without a known
     // price are left out and their tokens counted separately.
     readonly property var periodCost: period && period.cost ? period.cost : null
     readonly property var periodUnpriced: period && period.unpriced ? period.unpriced : null
     readonly property real claudeCost: periodCost ? (Number(periodCost.claude) || 0) : 0
     readonly property real codexCost: periodCost ? (Number(periodCost.codex) || 0) : 0
-    readonly property real cost: (showClaude ? claudeCost : 0) + (showCodex ? codexCost : 0)
-    readonly property real unpricedTokens: periodUnpriced ? (showClaude ? (Number(periodUnpriced.claude) || 0) : 0) + (showCodex ? (Number(periodUnpriced.codex) || 0) : 0) : 0
+    readonly property real zaiCost: periodCost ? (Number(periodCost.zai) || 0) : 0
+    readonly property real cost: (showClaude ? claudeCost : 0) + (showCodex ? codexCost : 0) + (showZai ? zaiCost : 0)
+    readonly property real unpricedTokens: !periodUnpriced ? 0 : (showClaude ? (Number(periodUnpriced.claude) || 0) : 0) + (showCodex ? (Number(periodUnpriced.codex) || 0) : 0) + (showZai ? (Number(periodUnpriced.zai) || 0) : 0)
     readonly property bool hasCost: !!periodCost && cost > 0
 
     readonly property var days: {
@@ -85,11 +92,12 @@ ColumnLayout {
             if (!cur || cur.key !== key) {
                 // date is the first day actually inside the period, so a
                 // partial leading week or month is not labelled before it.
-                cur = { key: key, date: d.date, unit: unit, claude: 0, codex: 0 };
+                cur = { key: key, date: d.date, unit: unit, claude: 0, codex: 0, zai: 0 };
                 out.push(cur);
             }
             cur.claude += Number(d.claude) || 0;
             cur.codex += Number(d.codex) || 0;
+            cur.zai += Number(d.zai) || 0;
         }
         return out;
     }
@@ -112,7 +120,7 @@ ColumnLayout {
     readonly property var modelRows: {
         if (!period || !Array.isArray(period.models))
             return [];
-        const rows = period.models.filter(m => !!m).filter(m => (m.provider === "claude" && showClaude) || (m.provider === "codex" && showCodex));
+        const rows = period.models.filter(m => !!m).filter(m => (m.provider === "claude" && showClaude) || (m.provider === "codex" && showCodex) || (m.provider === "zai" && showZai));
         const cap = 8;
         if (rows.length <= cap + 1)
             return rows;
@@ -138,7 +146,7 @@ ColumnLayout {
     spacing: Kirigami.Units.smallSpacing
 
     function dayValue(d) {
-        return (showClaude ? (Number(d.claude) || 0) : 0) + (showCodex ? (Number(d.codex) || 0) : 0);
+        return (showClaude ? (Number(d.claude) || 0) : 0) + (showCodex ? (Number(d.codex) || 0) : 0) + (showZai ? (Number(d.zai) || 0) : 0);
     }
 
     function niceCeil(v) {
@@ -155,6 +163,8 @@ ColumnLayout {
             return claudeColor;
         if (provider === "codex")
             return codexColor;
+        if (provider === "zai")
+            return zaiColor;
         return otherColor;
     }
 
@@ -163,6 +173,8 @@ ColumnLayout {
             return "Claude";
         if (provider === "codex")
             return "Codex";
+        if (provider === "zai")
+            return "Z.ai";
         return "";
     }
 
@@ -223,6 +235,7 @@ ColumnLayout {
     function dayTooltip(d) {
         const claude = Number(d.claude) || 0;
         const codex = Number(d.codex) || 0;
+        const zai = Number(d.zai) || 0;
         const date = parseDay(d.date);
         let title = dateLabel(d.date);
         if (date && d.unit === "month")
@@ -231,11 +244,13 @@ ColumnLayout {
             title = i18nc("bar tooltip title, %1 is the first day of the week", "Week of %1", dateLabel(d.date));
         const lines = [title];
         if (stacked)
-            lines.push(i18n("Total: %1", exact(claude + codex)));
+            lines.push(i18n("Total: %1", exact(claude + codex + zai)));
         if (showClaude)
             lines.push(i18n("Claude: %1", exact(claude)));
         if (showCodex)
             lines.push(i18n("Codex: %1", exact(codex)));
+        if (showZai)
+            lines.push(i18n("Z.ai: %1", exact(zai)));
         return lines.join("\n");
     }
 
@@ -310,7 +325,7 @@ ColumnLayout {
 
             PlasmaComponents3.ComboBox {
                 Layout.fillWidth: true
-                model: [i18n("All"), "Claude", "Codex"]
+                model: [i18n("All"), "Claude", "Codex", "Z.ai"]
                 currentIndex: tokensView.providerIndex
                 onActivated: index => tokensView.providerIndex = index
             }
@@ -405,7 +420,8 @@ ColumnLayout {
             Repeater {
                 model: [
                     { name: "Claude", value: tokensView.claudeTotal, cost: tokensView.claudeCost, color: tokensView.claudeColor },
-                    { name: "Codex", value: tokensView.codexTotal, cost: tokensView.codexCost, color: tokensView.codexColor }
+                    { name: "Codex", value: tokensView.codexTotal, cost: tokensView.codexCost, color: tokensView.codexColor },
+                    { name: "Z.ai", value: tokensView.zaiTotal, cost: tokensView.zaiCost, color: tokensView.zaiColor }
                 ]
 
                 delegate: RowLayout {
@@ -476,14 +492,18 @@ ColumnLayout {
             readonly property int labelStride: (count > 7 && !grouped) ? 7 : (slotWidth >= Kirigami.Units.gridUnit * 2.4 ? 1 : 2)
 
             function barHeight(v) {
-                const usable = plotHeight - (tokensView.stacked ? gap : 0);
+                const segs = tokensView.seriesCount;
+                const usable = plotHeight - (tokensView.stacked ? Math.max(0, segs - 1) * gap : 0);
                 return v > 0 ? Math.max(1, usable * v / tokensView.niceMax) : 0;
             }
 
             function stackHeight(d) {
-                const c = tokensView.showClaude ? barHeight(Number(d.claude) || 0) : 0;
-                const x = tokensView.showCodex ? barHeight(Number(d.codex) || 0) : 0;
-                return c + x + (c > 0 && x > 0 ? gap : 0);
+                const segs = [
+                    tokensView.showClaude ? barHeight(Number(d.claude) || 0) : 0,
+                    tokensView.showCodex ? barHeight(Number(d.codex) || 0) : 0,
+                    tokensView.showZai ? barHeight(Number(d.zai) || 0) : 0
+                ].filter(h => h > 0);
+                return segs.reduce((a, h) => a + h, 0) + Math.max(0, segs.length - 1) * gap;
             }
 
             Layout.fillWidth: true
@@ -554,8 +574,10 @@ ColumnLayout {
                     required property int index
                     readonly property real claude: tokensView.showClaude ? (Number(modelData.claude) || 0) : 0
                     readonly property real codex: tokensView.showCodex ? (Number(modelData.codex) || 0) : 0
+                    readonly property real zai: tokensView.showZai ? (Number(modelData.zai) || 0) : 0
                     readonly property real claudeH: chart.barHeight(claude)
                     readonly property real codexH: chart.barHeight(codex)
+                    readonly property real zaiH: chart.barHeight(zai)
                     readonly property bool dimmed: tokensView.emphasizeToday && index !== chart.count - 1 && !slotHover.hovered
 
                     x: chart.gutter + index * chart.slotWidth
@@ -608,6 +630,7 @@ ColumnLayout {
                     // Codex segment stacks on the Claude bar with a surface gap,
                     // following it while it animates
                     Rectangle {
+                        id: codexBar
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: claudeBar.visible ? claudeBar.top : parent.bottom
                         anchors.bottomMargin: claudeBar.visible ? chart.gap : 0
@@ -615,6 +638,26 @@ ColumnLayout {
                         height: slot.codexH
                         visible: height > 0
                         color: slotHover.hovered ? Qt.lighter(tokensView.codexColor, 1.15) : tokensView.codexColor
+                        topLeftRadius: slot.zaiH > 0 ? 0 : chart.cornerRadius
+                        topRightRadius: topLeftRadius
+
+                        Behavior on height {
+                            NumberAnimation {
+                                duration: Kirigami.Units.longDuration
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    // Z.ai segment stacks on the Codex bar the same way
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: codexBar.visible ? codexBar.top : (claudeBar.visible ? claudeBar.top : parent.bottom)
+                        anchors.bottomMargin: codexBar.visible || claudeBar.visible ? chart.gap : 0
+                        width: chart.barWidth
+                        height: slot.zaiH
+                        visible: height > 0
+                        color: slotHover.hovered ? Qt.lighter(tokensView.zaiColor, 1.15) : tokensView.zaiColor
                         topLeftRadius: chart.cornerRadius
                         topRightRadius: chart.cornerRadius
 

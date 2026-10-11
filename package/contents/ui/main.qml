@@ -111,8 +111,8 @@ PlasmoidItem {
         if (!usage || !usage.providers)
             return loading ? i18n("Loading…") : lastError;
         return usage.providers.map(p => {
-            const parts = (p.windows || []).filter(w => w.key === "session" || w.key === "weekly")
-                .map(w => i18nc("tooltip, e.g. 5 hours: 76% left", "%1: %2% left", w.key === "session" ? i18n("5 hours") : i18n("Weekly"), Math.round(100 - w.usedPercent)));
+            const parts = (p.windows || []).filter(w => w.key === "session" || w.key === "weekly" || w.key === "monthly")
+                .map(w => i18nc("tooltip, e.g. 5 hours: 76% left", "%1: %2% left", w.key === "session" ? i18n("5 hours") : w.key === "weekly" ? i18n("Weekly") : i18n("Monthly"), Math.round(100 - w.usedPercent)));
             return p.name + ": " + (parts.length ? parts.join(", ") : (p.errorCode ? i18n("unavailable") : i18n("no data")));
         }).join("\n");
     }

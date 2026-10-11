@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Print daily and per-model token totals from local Claude Code and Codex logs.
+"""Print daily and per-model token totals from local Claude Code and Codex
+logs, plus account-wide Z.ai usage.
 
 Claude Code writes one JSON line per API response under ~/.claude/projects,
 the Codex CLI writes cumulative token counters into ~/.codex/sessions. Both are
 append-only, so each file is parsed once and afterwards only from the byte
 offset reached last time; the per-file results live in a cache. Only the last
-RETENTION_DAYS days are kept.
+RETENTION_DAYS days are kept. The Z.ai series comes from the console's
+account-wide monitor API and covers every tool that uses the plan's key.
 
-Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 365 days),
-pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, cost: {claude, codex},
-unpriced: {claude, codex}, models: [Model]}}} where a Model is
+Output: {generatedAt, scanning, daily: [{date, claude, codex, zai}] (last 365 days),
+pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, zai,
+cost: {claude, codex, zai}, unpriced: {claude, codex, zai},
+models: [Model]}}} where a Model is
 {name, provider, total, input, output, cacheRead, cacheWrite, cost}. cost is the
 USD the tokens would cost at API list prices; tokens of models without a known
 price are left out of it and counted in unpriced, and such a Model has cost null.
@@ -21,6 +24,10 @@ import os
 import re
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
@@ -34,10 +41,16 @@ CLAUDE_DIR = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HO
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_DIRS = [os.path.join(CODEX_HOME, "sessions"), os.path.join(CODEX_HOME, "archived_sessions")]
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
-CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v4.json")
+CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v6.json")
 RETENTION_DAYS = 366
 WORKERS = 4
 
+# Account-wide Z.ai usage covers every tool that uses the plan's key, not
+# only the ones whose local logs are scanned above. The endpoint is the
+# console's undocumented monitor API, so parse defensively.
+ZAI_MODEL_USAGE_URL = "https://api.z.ai/api/monitor/usage/model-usage"
+ZAI_TTL = 600
+UTC8 = timezone(timedelta(hours=8))
 
 
 def local_day(ts):
@@ -275,6 +288,107 @@ def update(cache, today):
             del entry["contrib"][day]
 
 
+# Z.ai account usage
+
+
+def zai_day(bucket):
+    """A bucket label ("2026-10-04 13:00" or "2026-10-04") is a UTC+8 time."""
+    s = (bucket or "").strip()
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=UTC8).astimezone().date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _zai_window(key, start, end):
+    """One model-usage request; returns the data body or raises."""
+    url = ZAI_MODEL_USAGE_URL + "?" + urllib.parse.urlencode({
+        "startTime": start.strftime("%Y-%m-%d %H:%M:%S"),
+        "endTime": end.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+    req = urllib.request.Request(url, headers={
+        "Authorization": key,
+        "User-Agent": "agents-usage-plasmoid",
+        "Accept": "application/json",
+    })
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.load(resp)
+    # Failures ride in a 200 envelope (M5-style): check it, not the status.
+    if not isinstance(data, dict) or data.get("code") != 200 or data.get("success") is not True:
+        raise ValueError("zai usage envelope: %s" % (data.get("msg"),))
+    return data.get("data") or {}
+
+
+def fetch_zai_usage():
+    """Return ({day: tokens}, {model: {day: tokens}}) for the whole account.
+
+    The server rejects ranges past about a month, so the retention window is
+    walked in 30-day chunks whose bucket labels cannot overlap.
+    """
+    key = None
+    try:
+        base = os.environ.get("XDG_DATA_HOME") or os.path.join(HOME, ".local", "share")
+        with open(os.path.join(base, "opencode", "auth.json")) as f:
+            key = (json.load(f).get("zai-coding-plan") or {}).get("key")
+    except (OSError, ValueError, AttributeError):
+        pass
+    if not key:
+        return None
+    end = datetime.now(UTC8)
+    start = end - timedelta(days=RETENTION_DAYS)
+    days, model_days = {}, {}
+    chunk_start, step = start, timedelta(days=30)
+    while chunk_start <= end:
+        chunk_end = min(chunk_start + step - timedelta(seconds=1), end)
+        body = _zai_window(key, chunk_start, chunk_end)
+        x = body.get("x_time") or []
+        for i, total in enumerate(body.get("tokensUsage") or []):
+            if i >= len(x):
+                break
+            day = zai_day(x[i])
+            if day and total:
+                days[day] = days.get(day, 0) + total
+        for m in body.get("modelDataList") or []:
+            name = m.get("modelName")
+            if not name:
+                continue
+            for i, total in enumerate(m.get("tokensUsage") or []):
+                if i >= len(x):
+                    break
+                day = zai_day(x[i])
+                if day and total:
+                    slot = model_days.setdefault(name, {})
+                    slot[day] = slot.get(day, 0) + total
+        if chunk_end >= end:
+            break
+        chunk_start = chunk_end + timedelta(seconds=1)
+    return days, model_days
+
+
+def refresh_zai(cache, today):
+    """Refresh the account-wide Z.ai usage at most every ZAI_TTL seconds.
+
+    A failed fetch keeps the previous data; without any, the provider simply
+    stays empty until a later refresh succeeds.
+    """
+    entry = cache.get("zai") or {}
+    if time.time() - entry.get("fetchedAt", 0) < ZAI_TTL:
+        return
+    try:
+        result = fetch_zai_usage()
+    except (OSError, ValueError, urllib.error.URLError):
+        return
+    if not result:
+        return
+    cutoff = (today - timedelta(days=RETENTION_DAYS - 1)).isoformat()
+    days, model_days = result
+    days = {d: v for d, v in days.items() if d >= cutoff}
+    model_days = {m: {d: v for d, v in s.items() if d >= cutoff} for m, s in model_days.items()}
+    cache["zai"] = {"fetchedAt": time.time(), "days": days, "modelDays": model_days}
+
+
 CLAUDE_NEW = re.compile(r"^claude-([a-z]+)-(\d+(?:-\d{1,2})?)(?:-\d{8})?$")
 CLAUDE_OLD = re.compile(r"^claude-(\d+(?:-\d{1,2})?)-([a-z]+)(?:-\d{8})?$")
 
@@ -292,15 +406,16 @@ def pretty_model(provider, model):
 
 def summarise(cache, today, price_of, prices_as_of):
     all_days = [(today - timedelta(days=i)).isoformat() for i in range(364, -1, -1)]
-    daily = {d: {"date": d, "claude": 0, "codex": 0} for d in all_days}
+    daily = {d: {"date": d, "claude": 0, "codex": 0, "zai": 0} for d in all_days}
     periods = {}
     for n in (1, 7, 30, 60, 90, 365):
         periods[str(n)] = {
             "first": (today - timedelta(days=n - 1)).isoformat(),
             "claude": 0,
             "codex": 0,
-            "cost": {"claude": 0.0, "codex": 0.0},
-            "unpriced": {"claude": 0, "codex": 0},
+            "zai": 0,
+            "cost": {"claude": 0.0, "codex": 0.0, "zai": 0.0},
+            "unpriced": {"claude": 0, "codex": 0, "zai": 0},
             "models": {},
         }
 
@@ -330,6 +445,31 @@ def summarise(cache, today, price_of, prices_as_of):
                         slot["cost"] += cost
                         p["cost"][provider] += cost
 
+    # Account-wide Z.ai usage: every tool sharing the plan's key, local logs
+    # or not. Its day totals are the sum of the per-model series.
+    zai_entry = cache.get("zai") or {}
+    for model, days in (zai_entry.get("modelDays") or {}).items():
+        if model not in rates:
+            rates[model] = price_of(model)
+        for day, total in days.items():
+            if day in daily:
+                daily[day]["zai"] += total
+            if total <= 0:
+                continue
+            cost = prices.cost(rates[model], [total, 0, 0, 0, 0]) if rates[model] else None
+            for p in periods.values():
+                if day < p["first"]:
+                    continue
+                p["zai"] += total
+                slot = p["models"].setdefault(("zai", model), {"comps": [0] * 5, "cost": 0.0, "unpriced": 0})
+                slot["comps"][0] += total
+                if cost is None:
+                    slot["unpriced"] += total
+                    p["unpriced"]["zai"] += total
+                else:
+                    slot["cost"] += cost
+                    p["cost"]["zai"] += cost
+
     out = {}
     for key, p in periods.items():
         models = []
@@ -350,6 +490,7 @@ def summarise(cache, today, price_of, prices_as_of):
         out[key] = {
             "claude": p["claude"],
             "codex": p["codex"],
+            "zai": p["zai"],
             "cost": {k: round(v, 4) for k, v in p["cost"].items()},
             "unpriced": p["unpriced"],
             "models": models,
@@ -366,7 +507,7 @@ def summarise(cache, today, price_of, prices_as_of):
 def main():
     os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
     # Earlier cache formats hold the same log metadata; do not leave them behind.
-    for old in ("tokens-v1.json", "tokens-v2.json", "tokens-v3.json"):
+    for old in ("tokens-v1.json", "tokens-v2.json", "tokens-v3.json", "tokens-v4.json", "tokens-v5.json", "tokens-v7.json", "tokens-v8.json"):
         try:
             os.unlink(os.path.join(CACHE_DIR, old))
         except FileNotFoundError:
@@ -377,8 +518,10 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         cache = load_cache()
         update(cache, today)
-        write_cache(cache)
-    # Outside the lock: a slow price fetch must not hold up another instance.
+    # Outside the lock: the network fetch and a slow price load must not hold
+    # up another instance.
+    refresh_zai(cache, today)
+    write_cache(cache)
     price_of, prices_as_of = prices.load(CACHE_DIR)
     print(json.dumps(summarise(cache, today, price_of, prices_as_of)))
 
