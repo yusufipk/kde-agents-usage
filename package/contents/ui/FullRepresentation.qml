@@ -139,7 +139,7 @@ PlasmaExtras.Representation {
             PlasmaComponents3.Label {
                 Layout.fillWidth: true
                 visible: !full.limitsTab
-                text: i18n("From local Claude Code and Codex logs; claude.ai chats are not included.")
+                text: i18n("From local Claude Code, Codex and Grok logs; web chats are not included.")
                 color: Kirigami.Theme.disabledTextColor
                 font: Kirigami.Theme.smallFont
                 wrapMode: Text.Wrap

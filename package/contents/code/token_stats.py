@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Print daily and per-model token totals from local Claude Code and Codex logs.
+"""Print daily and per-model token totals from local Claude Code, Codex and Grok logs.
 
 Claude Code writes one JSON line per API response under ~/.claude/projects,
 the Codex CLI writes cumulative token counters into ~/.codex/sessions. Both are
 append-only, so each file is parsed once and afterwards only from the byte
-offset reached last time; the per-file results live in a cache. Only the last
+offset reached last time. Grok writes a usage.json snapshot per session, so
+its contribution is replaced when the snapshot changes. The per-file results
+live in a cache. Only the last
 RETENTION_DAYS days are kept.
 
-Output: {generatedAt, scanning, daily: [{date, claude, codex}] (last 365 days),
-pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, cost: {claude, codex},
-unpriced: {claude, codex}, models: [Model]}}} where a Model is
+Output: {generatedAt, scanning, daily: [{date, claude, codex, grok}] (last 365 days),
+pricesAsOf, periods: {"1"|"7"|"30"|"60"|"90"|"365": {claude, codex, grok, cost: {claude, codex, grok},
+unpriced: {claude, codex, grok}, models: [Model]}}} where a Model is
 {name, provider, total, input, output, cacheRead, cacheWrite, cost}. cost is the
 USD the tokens would cost at API list prices; tokens of models without a known
 price are left out of it and counted in unpriced, and such a Model has cost null.
@@ -33,6 +35,8 @@ HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude"), "projects")
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_DIRS = [os.path.join(CODEX_HOME, "sessions"), os.path.join(CODEX_HOME, "archived_sessions")]
+GROK_HOME = os.environ.get("GROK_HOME") or os.path.join(HOME, ".grok")
+GROK_DIR = os.path.join(GROK_HOME, "sessions")
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
 CACHE_FILE = os.path.join(CACHE_DIR, "tokens-v4.json")
 RETENTION_DAYS = 366
@@ -155,15 +159,52 @@ def codex_comps(u):
     ]
 
 
+def parse_grok(path):
+    """Read a rewritten usage.json snapshot, grouped by turn end and model.
+
+    Grok input includes cached tokens and output includes reasoning. The
+    latter must not be added again. Context counters in signals.json are not
+    usage, and chat_history.jsonl is not a token ledger.
+    """
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, dict) or not isinstance(data.get("turns"), list):
+        raise ValueError("invalid Grok usage snapshot")
+    contrib = {}
+    for turn in data["turns"]:
+        try:
+            day = local_day(turn["endedAt"])
+            models = turn.get("modelUsage")
+            if not isinstance(models, dict) or not models:
+                # Older ledgers may only have a turn total. Keep it without
+                # attributing multi-model work to the primary model.
+                models = {"grok": turn}
+            for model, usage in models.items():
+                if not isinstance(model, str) or not isinstance(usage, dict):
+                    continue
+                counts = [usage.get(k, 0) for k in ("inputTokens", "outputTokens", "cachedReadTokens", "cacheCreationTokens")]
+                if any(isinstance(n, bool) or not isinstance(n, int) or n < 0 for n in counts):
+                    continue
+                inp, out, cached, written = counts
+                if cached + written > inp:
+                    continue
+                add(contrib, day, model, [inp - cached - written, out, cached, written, 0])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            continue
+    return contrib
+
+
 def parse(job):
     kind, path, offset, state = job
     try:
         if kind == "claude":
             records, new_offset = parse_claude(path, offset)
             return path, records, new_offset, None
+        if kind == "grok":
+            return path, parse_grok(path), 0, {}
         contrib, new_offset, new_state = parse_codex(path, offset, state)
         return path, contrib, new_offset, new_state
-    except OSError:
+    except (OSError, ValueError, TypeError):
         return path, None, offset, state
 
 
@@ -182,6 +223,29 @@ def list_files(cutoff_ts):
                         continue
                     if st.st_mtime >= cutoff_ts:
                         found[p] = (kind, st.st_size, st.st_mtime)
+    # Grok sessions are <workspace>/<session>/usage.json; never scan artifacts
+    # or transcripts nested inside those sessions.
+    try:
+        workspaces = list(os.scandir(GROK_DIR))
+    except OSError:
+        workspaces = []
+    for workspace in workspaces:
+        if not workspace.is_dir(follow_symlinks=False):
+            continue
+        try:
+            sessions = list(os.scandir(workspace.path))
+        except OSError:
+            continue
+        for session in sessions:
+            if not session.is_dir(follow_symlinks=False):
+                continue
+            p = os.path.join(session.path, "usage.json")
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            if st.st_mtime >= cutoff_ts:
+                found[p] = ("grok", st.st_size, st.st_mtime)
     return found
 
 
@@ -249,7 +313,10 @@ def update(cache, today):
             continue
         entry["offset"] = offset
         entry["size"], entry["mtime"] = found[path][1], found[path][2]
-        if entry["kind"] == "claude":
+        if entry["kind"] == "grok":
+            # usage.json is replaced in place, not an append-only log.
+            entry["contrib"] = data
+        elif entry["kind"] == "claude":
             for key, (day, model, comps) in data.items():
                 short = key[-24:]
                 if owner.setdefault(short, path) != path:
@@ -292,15 +359,16 @@ def pretty_model(provider, model):
 
 def summarise(cache, today, price_of, prices_as_of):
     all_days = [(today - timedelta(days=i)).isoformat() for i in range(364, -1, -1)]
-    daily = {d: {"date": d, "claude": 0, "codex": 0} for d in all_days}
+    daily = {d: {"date": d, "claude": 0, "codex": 0, "grok": 0} for d in all_days}
     periods = {}
     for n in (1, 7, 30, 60, 90, 365):
         periods[str(n)] = {
             "first": (today - timedelta(days=n - 1)).isoformat(),
             "claude": 0,
             "codex": 0,
-            "cost": {"claude": 0.0, "codex": 0.0},
-            "unpriced": {"claude": 0, "codex": 0},
+            "grok": 0,
+            "cost": {"claude": 0.0, "codex": 0.0, "grok": 0.0},
+            "unpriced": {"claude": 0, "codex": 0, "grok": 0},
             "models": {},
         }
 
@@ -350,6 +418,7 @@ def summarise(cache, today, price_of, prices_as_of):
         out[key] = {
             "claude": p["claude"],
             "codex": p["codex"],
+            "grok": p["grok"],
             "cost": {k: round(v, 4) for k, v in p["cost"].items()},
             "unpriced": p["unpriced"],
             "models": models,

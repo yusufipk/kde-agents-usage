@@ -16,8 +16,8 @@ msgstr "Tokenlar"
 msgid "Refresh"
 msgstr "Yenile"
 
-msgid "From local Claude Code and Codex logs; claude.ai chats are not included."
-msgstr "Yerel Claude Code ve Codex kayıtlarından; claude.ai sohbetleri dahil değil."
+msgid "From local Claude Code, Codex and Grok logs; web chats are not included."
+msgstr "Yerel Claude Code, Codex ve Grok kayıtlarından; web sohbetleri dahil değil."
 
 msgid "Refresh failed"
 msgstr "Yenileme başarısız"
@@ -267,3 +267,6 @@ msgstr "Grok oturumu geçersiz, grok login ile tekrar giriş yap"
 
 msgid "Grok did not report a usage percentage"
 msgstr "Grok kullanım yüzdesini bildirmedi"
+
+msgid "Grok: %1"
+msgstr "Grok: %1"

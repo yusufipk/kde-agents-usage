@@ -24,6 +24,7 @@ PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_price
 FETCH_EVERY = 24 * 3600
 RETRY_AFTER = 3600
 MAX_BYTES = 32 * 1024 * 1024
+CACHE_VERSION = 2
 
 # USD per million tokens: input, output, cache read, cache write (5 min),
 # cache write (1 hour). Snapshot of the providers' pricing pages, 2026-10-01.
@@ -78,14 +79,17 @@ def _rate(v):
 
 
 def _from_litellm(raw):
-    """Keep only plain model ids from Anthropic and OpenAI with usable rates."""
+    """Keep model ids from Anthropic, OpenAI and xAI with usable rates."""
     out = {}
     if not isinstance(raw, dict):
         return out
     for name, v in raw.items():
-        if not isinstance(name, str) or not isinstance(v, dict) or "/" in name:
+        if not isinstance(name, str) or not isinstance(v, dict):
             continue
-        if v.get("litellm_provider") not in ("anthropic", "openai"):
+        provider = v.get("litellm_provider")
+        if provider == "xai" and name.startswith("xai/"):
+            name = name[len("xai/"):]
+        if provider not in ("anthropic", "openai", "xai") or "/" in name:
             continue
         inp, outp = _rate(v.get("input_cost_per_token")), _rate(v.get("output_cost_per_token"))
         if inp is None or outp is None:
@@ -141,6 +145,9 @@ def load(cache_dir):
 
     fetched_at = stamp(stored.get("fetchedAt"))
     tried_at = stamp(stored.get("triedAt"))
+    # Older caches filtered out xAI; refresh them once on upgrade.
+    if stored.get("version") != CACHE_VERSION:
+        fetched_at = tried_at = 0
     models = stored.get("models") if isinstance(stored.get("models"), dict) else {}
     if now - fetched_at > FETCH_EVERY and now - tried_at > RETRY_AFTER:
         try:
@@ -151,7 +158,7 @@ def load(cache_dir):
             # Offline or a malformed list: keep what is stored and retry later.
             pass
         try:
-            _write(path, {"fetchedAt": fetched_at, "triedAt": now, "models": models})
+            _write(path, {"version": CACHE_VERSION, "fetchedAt": fetched_at, "triedAt": now, "models": models})
         except OSError:
             pass
 
