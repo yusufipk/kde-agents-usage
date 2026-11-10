@@ -65,6 +65,10 @@ ColumnLayout {
             return i18n("5 hours");
         case "weekly":
             return i18n("Weekly");
+        case "monthly":
+            return i18n("Monthly");
+        case "credits":
+            return i18n("Credits");
         case "weekly_scoped":
             return w.model ? i18n("Weekly · %1", w.model) : i18n("Weekly");
         default:
@@ -86,6 +90,14 @@ ColumnLayout {
             return i18n("Could not renew the Codex session, sign in again with codex login");
         case "codex_save_failed":
             return i18n("Could not save the renewed Codex session (%1), codex login may be needed", detail || "");
+        case "grok_no_login":
+            return i18n("Grok login not found, sign in with grok login");
+        case "grok_expired":
+            return i18n("Grok session expired, sign in again with grok login");
+        case "grok_invalid":
+            return i18n("Grok session is invalid, sign in again with grok login");
+        case "grok_no_usage":
+            return i18n("Grok did not report a usage percentage");
         case "http":
             return i18n("HTTP error %1", detail || "");
         case "network":

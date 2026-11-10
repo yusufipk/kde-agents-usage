@@ -28,7 +28,7 @@ msgid "Refresh"
 msgstr ""
 
 msgid ""
-"From local Claude Code and Codex logs; claude.ai chats are not included."
+"From local Claude Code, Codex and Grok logs; web chats are not included."
 msgstr ""
 
 msgid "Refresh failed"
@@ -265,4 +265,22 @@ msgid "What these tokens would cost on the pay-as-you-go API, cache reads and wr
 msgstr ""
 
 msgid "Not included: %1 tokens from models with no known price"
+msgstr ""
+
+msgid "Credits"
+msgstr ""
+
+msgid "Grok login not found, sign in with grok login"
+msgstr ""
+
+msgid "Grok session expired, sign in again with grok login"
+msgstr ""
+
+msgid "Grok session is invalid, sign in again with grok login"
+msgstr ""
+
+msgid "Grok did not report a usage percentage"
+msgstr ""
+
+msgid "Grok: %1"
 msgstr ""

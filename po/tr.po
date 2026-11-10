@@ -16,8 +16,8 @@ msgstr "Tokenlar"
 msgid "Refresh"
 msgstr "Yenile"
 
-msgid "From local Claude Code and Codex logs; claude.ai chats are not included."
-msgstr "Yerel Claude Code ve Codex kayıtlarından; claude.ai sohbetleri dahil değil."
+msgid "From local Claude Code, Codex and Grok logs; web chats are not included."
+msgstr "Yerel Claude Code, Codex ve Grok kayıtlarından; web sohbetleri dahil değil."
 
 msgid "Refresh failed"
 msgstr "Yenileme başarısız"
@@ -252,3 +252,21 @@ msgstr "Bu tokenların kullandıkça öde API'de tutacağı tutar, cache okuma v
 
 msgid "Not included: %1 tokens from models with no known price"
 msgstr "Dahil değil: fiyatı bilinmeyen modellerden %1 token"
+
+msgid "Credits"
+msgstr "Krediler"
+
+msgid "Grok login not found, sign in with grok login"
+msgstr "Grok girişi bulunamadı, grok login ile giriş yap"
+
+msgid "Grok session expired, sign in again with grok login"
+msgstr "Grok oturumunun süresi dolmuş, grok login ile tekrar giriş yap"
+
+msgid "Grok session is invalid, sign in again with grok login"
+msgstr "Grok oturumu geçersiz, grok login ile tekrar giriş yap"
+
+msgid "Grok did not report a usage percentage"
+msgstr "Grok kullanım yüzdesini bildirmedi"
+
+msgid "Grok: %1"
+msgstr "Grok: %1"

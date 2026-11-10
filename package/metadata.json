@@ -2,8 +2,8 @@
     "KPlugin": {
         "Authors": [{ "Name": "Yusuf İpek" }],
         "Category": "System Information",
-        "Description": "Remaining 5-hour and weekly limits for Claude and OpenAI Codex",
-        "Description[tr]": "Claude ve OpenAI Codex için kalan 5 saatlik ve haftalık limitler",
+        "Description": "Remaining usage limits for Claude, OpenAI Codex and Grok",
+        "Description[tr]": "Claude, OpenAI Codex ve Grok için kalan kullanım limitleri",
         "Icon": "speedometer",
         "Id": "io.github.yusufipk.agentsusage",
         "License": "MIT",
