@@ -252,3 +252,18 @@ msgstr "Bu tokenların kullandıkça öde API'de tutacağı tutar, cache okuma v
 
 msgid "Not included: %1 tokens from models with no known price"
 msgstr "Dahil değil: fiyatı bilinmeyen modellerden %1 token"
+
+msgid "Credits"
+msgstr "Krediler"
+
+msgid "Grok login not found, sign in with grok login"
+msgstr "Grok girişi bulunamadı, grok login ile giriş yap"
+
+msgid "Grok session expired, sign in again with grok login"
+msgstr "Grok oturumunun süresi dolmuş, grok login ile tekrar giriş yap"
+
+msgid "Grok session is invalid, sign in again with grok login"
+msgstr "Grok oturumu geçersiz, grok login ile tekrar giriş yap"
+
+msgid "Grok did not report a usage percentage"
+msgstr "Grok kullanım yüzdesini bildirmedi"

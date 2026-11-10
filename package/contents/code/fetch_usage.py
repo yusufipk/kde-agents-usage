@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Print remaining usage limits for Claude and OpenAI Codex as JSON.
+"""Print remaining usage limits for Claude, OpenAI Codex and Grok as JSON.
 
-Reads the OAuth credentials that Claude Code and the Codex CLI already store
+Reads the OAuth credentials that Claude Code, Codex and Grok CLIs already store
 on disk and asks each service for the current rate-limit windows. Stdlib only,
 so the plasmoid needs nothing beyond python3.
 
@@ -16,6 +16,7 @@ previous numbers with stale=true.
 import base64
 import fcntl
 import json
+import math
 import os
 import tempfile
 import time
@@ -28,12 +29,16 @@ HOME = os.path.expanduser("~")
 CLAUDE_CREDS = os.path.join(HOME, ".claude", ".credentials.json")
 CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(HOME, ".codex")
 CODEX_AUTH = os.path.join(CODEX_HOME, "auth.json")
+GROK_HOME = os.environ.get("GROK_HOME") or os.path.join(HOME, ".grok")
+GROK_AUTH = os.path.join(GROK_HOME, "auth.json")
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "agents-usage")
 CACHE_FILE = os.path.join(CACHE_DIR, "limits-v2.json")
 
 CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
 CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
+GROK_USAGE_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+GROK_SETTINGS_URL = "https://cli-chat-proxy.grok.com/v1/settings"
 # Public OAuth client id of the Codex CLI (the same value the CLI sends).
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 TIMEOUT = 15
@@ -263,10 +268,69 @@ def fetch_codex():
     return {"plan": CODEX_PLAN_NAMES.get(plan, plan.capitalize()) if plan else None, "windows": windows}
 
 
+# Grok
+
+
+def fetch_grok():
+    try:
+        with open(GROK_AUTH) as f:
+            auth = json.load(f)
+        # Prefer the current SuperGrok login over the legacy CLI login.
+        entries = [(scope, entry) for scope, entry in auth.items()
+                   if scope.startswith(("https://auth.x.ai::", "https://accounts.x.ai/sign-in"))
+                   and isinstance(entry, dict) and isinstance(entry.get("key"), str) and entry["key"]]
+        entries.sort(key=lambda item: not item[0].startswith("https://auth.x.ai::"))
+        entry = entries[0][1]
+        expires = datetime.fromisoformat(entry["expires_at"])
+        if expires.tzinfo is None:
+            raise ValueError("missing timezone")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+        raise FetchError("grok_no_login")
+
+    # Grok owns token renewal; this helper never changes its auth file.
+    if expires.timestamp() <= time.time():
+        raise FetchError("grok_expired")
+    headers = {
+        "Authorization": "Bearer " + entry["key"],
+        "x-xai-token-auth": "xai-grok-cli",
+        "User-Agent": "agents-usage-plasmoid",
+        "Accept": "application/json",
+    }
+    try:
+        data = http_json(GROK_USAGE_URL, headers)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise FetchError("grok_invalid")
+        raise FetchError("http", str(e.code))
+
+    config = data.get("config") if isinstance(data, dict) else None
+    if not isinstance(config, dict):
+        raise FetchError("grok_no_usage")
+    used = config.get("creditUsagePercent")
+    # An omitted percentage is unknown, not an unused allowance.
+    if isinstance(used, bool) or not isinstance(used, (int, float)) or not math.isfinite(used):
+        raise FetchError("grok_no_usage")
+    period = config.get("currentPeriod")
+    if not isinstance(period, dict):
+        period = {}
+    key = {"USAGE_PERIOD_TYPE_WEEKLY": "weekly", "USAGE_PERIOD_TYPE_MONTHLY": "monthly"}.get(period.get("type"), "credits")
+    reset = period.get("end") or config.get("billingPeriodEnd")
+
+    # Plan display is optional enrichment; a settings outage must not hide quota.
+    plan = None
+    try:
+        settings = http_json(GROK_SETTINGS_URL, headers)
+        if isinstance(settings, dict) and isinstance(settings.get("subscription_tier_display"), str):
+            plan = settings["subscription_tier_display"] or None
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        pass
+    return {"plan": plan, "windows": [window(key, used, reset)]}
+
+
 # Main
 
 
-PROVIDERS = (("claude", "Claude", fetch_claude), ("codex", "Codex", fetch_codex))
+PROVIDERS = (("claude", "Claude", fetch_claude), ("codex", "Codex", fetch_codex), ("grok", "Grok", fetch_grok))
 
 
 def expire_window(w):

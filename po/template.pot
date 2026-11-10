@@ -266,3 +266,18 @@ msgstr ""
 
 msgid "Not included: %1 tokens from models with no known price"
 msgstr ""
+
+msgid "Credits"
+msgstr ""
+
+msgid "Grok login not found, sign in with grok login"
+msgstr ""
+
+msgid "Grok session expired, sign in again with grok login"
+msgstr ""
+
+msgid "Grok session is invalid, sign in again with grok login"
+msgstr ""
+
+msgid "Grok did not report a usage percentage"
+msgstr ""
